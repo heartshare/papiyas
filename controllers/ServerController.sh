@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
 server::configure() {
-  add_option 'a' 'all'   "$INPUT_NULL"  '全部'
-  add_option 'f' 'force' "$INPUT_NULL"  '强制执行'
+  add_option 'a' 'all'   "${OPTION_NULL}"  '全部'
+  add_option 'f' 'force' "${OPTION_NULL}"  '强制执行'
   add_argument 'server_name' "$INPUT_ARRAY" '服务名称'
 }
 
