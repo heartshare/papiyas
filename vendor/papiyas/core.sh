@@ -123,37 +123,37 @@ throw() {
 
 ### alias ####################################################################
 
-if ! function_exist add_option; then
+if ! function_exists add_option; then
   add_option() {
     Papiyas::addOption "$@"
   }
 fi
 
-if ! function_exist get_option; then
+if ! function_exists get_option; then
   get_option() {
     Papiyas::getOption "$@"
   }
 fi
 
-if ! function_exist add_argument; then
+if ! function_exists add_argument; then
   add_argument() {
     Papiyas::addArgument "$@"
   }
 fi
 
-if ! function_exist get_argument; then
+if ! function_exists get_argument; then
   get_argument() {
     Papiyas::getArgument "$@"
   }
 fi
 
-if ! function_exist get_controller; then
+if ! function_exists get_controller; then
   get_controller() {
     Papiyas::getController
   }
 fi
 
-if ! function_exist get_action; then
+if ! function_exists get_action; then
   get_action() {
     Papiyas::getAction
   }

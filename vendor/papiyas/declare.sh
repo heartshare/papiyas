@@ -42,6 +42,10 @@ export INPUT_REQUIRE=1
 export INPUT_OPTIONAL=2
 export INPUT_ARRAY=3
 
+### 控制器与方法  #################################
+
+export controller_name
+export action_name
 
 ### 失败次数  ######################################
 
