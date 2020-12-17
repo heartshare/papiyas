@@ -6,8 +6,7 @@ main::configure() {
 }
 
 
+
 main::list() {
-   # echo $(get_argument name)
-echo $(get_argument name)
-echo $(get_option help)
+
 }

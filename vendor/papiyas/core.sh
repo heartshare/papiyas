@@ -54,9 +54,10 @@ get_config() {
   local ini_file="${papiyas_config_path}/${config[0]}.ini"
 
   if [ -f "${ini_file}" ] && [ -n "${config[1]}" ]; then
-     cat "${ini_file}" | sed -n "/^$(strtoupper ${config[1]})=/p" | awk -F'=' '{print $2}'
+     cat "${ini_file}" | sed -n "/^$(str_upper ${config[1]})=/p" | awk -F'=' '{print $2}'
   else
-     echo 'upper'
+     # 当获取不到时 返回 空
+     echo
   fi
 }
 
@@ -169,8 +170,8 @@ fi
 ## 
 ##################################################
 function docker_compose() {
-  local laradock_path=$(get_config app.laradock_path)
+  local laradock_path=$(eval echo $(get_config app.laradock_path))
   local compose_file=$(get_config app.compose_file)
 
-  docker-compose --project-directory="${laradock_path}" -f "${laradock_path}/${compose_file}" "$@"
+  docker-compose --project-directory=${laradock_path} -f"${laradock_path}/${compose_file}" "$@"
 }

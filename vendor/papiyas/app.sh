@@ -253,7 +253,6 @@ Papiyas::parse() {
           params[${#params[@]}]="$1"
         fi
       fi
-
     fi
 
     shift
