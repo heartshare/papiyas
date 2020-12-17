@@ -224,6 +224,12 @@ Papiyas::parse() {
           ;;
         esac
 
+
+         ## 如果短选项有对应长选项, 则同时设置长选项存储的数据
+        if [[ "${input_short_options[${option_name}]}" != 1 ]]; then 
+          output_options[${input_short_options[${option_name}]}]=${output_options[$option_name]}
+        fi
+
       else
         # throw "选项${option_name}不存在"
         # 由于要执行原生指令, 所以对不存在的选项名不再报错. 存储后提供给原生执行做参数使用
