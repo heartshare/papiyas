@@ -47,11 +47,15 @@ export INPUT_ARRAY=3
 export controller_name
 export action_name
 
-### 失败次数  ######################################
+### 失败次数  #####################################
 
 if [ -z "$FAILED_TIMES" ]; then
   export FAILED_TIMES=0
 fi
+
+### 经过处理后剩余的参数列表  ######################
+
+export params=()
 
 
 

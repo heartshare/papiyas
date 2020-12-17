@@ -14,9 +14,10 @@ get_papiyas_name() {
 # 之所以不自动加载全部而是因为shell脚本加载顺序很重要
 load_vendors() {
   local script
-  local files=($(find ${papiyas_vendor_path} -name 'autoload.sh'));
+  local files=($(find ${papiyas_vendor_path} -name '*.sh'));
+  
   for script in "${files[@]}"; do
-    . "$script"
+    . "${script}"
   done
 }
 
@@ -33,8 +34,9 @@ export papiyas_vendor_path=$papiyas_path'/../vendor'
 # 执行脚本名称
 export papiyas="${papiyas_path}/$(get_papiyas_name)"
 
-#######################################################
+. ${papiyas_path}/declare.sh
 
+#######################################################
 
 load_vendors
 
