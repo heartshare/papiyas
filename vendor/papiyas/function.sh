@@ -16,7 +16,7 @@
 ## @return 所传入的参数为函数则返回真, 否则返回假
 ## 
 ########################################################
-function_exists() {
+function_exist() {
   if [[ $(type -t $1) == 'function' ]]; then
     return 0
   else
