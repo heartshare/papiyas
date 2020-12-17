@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+
+# 获取papiyas脚本所在的绝对路径
+get_papiyas_path() {
+  cd "$(dirname "$0")" && pwd
+}
+
+# 获取执行脚本名称
+get_papiyas_name() {
+  basename "$0"
+}
+
+# 加载第三方脚本库的autoload.sh文件
+# 之所以不自动加载全部而是因为shell脚本加载顺序很重要
+load_vendors() {
+  local script
+  local files=($(find ${papiyas_vendor_path} -name 'autoload.sh'));
+  for script in "${files[@]}"; do
+    . "$script"
+  done
+}
+
+### 全局路径变量 ##########################################
+
+# papiyas执行脚本所在目录
+export papiyas_path=$(get_papiyas_path)
+# 控制器目录
+export papiyas_controller_path=$papiyas_path'/../controllers'
+# 配置文件目录
+export papiyas_config_path=$papiyas_path'/../config'
+# 第三方库目录
+export papiyas_vendor_path=$papiyas_path'/../vendor'
+# 执行脚本名称
+export papiyas="${papiyas_path}/$(get_papiyas_name)"
+
+#######################################################
+
+
+load_vendors
+
+Papiyas::run "$@"
+
+
