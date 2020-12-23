@@ -10,6 +10,13 @@
 + server:remove
 + server:ps
 
+## install
+
+目前在安装Laradock部分的配置数据较小, 之后会把常用的放进来.
+如果有想要配置的但是没有的可以直接从laradock的env-example中粘贴过来放入env.ini中即可
+
++ install:docker
++ install:laradock
 
 ## 其他命令
 

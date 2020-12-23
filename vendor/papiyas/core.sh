@@ -83,23 +83,8 @@ ansi() {
 ##
 ##########################################################
 throw() {
-  local exception 
-  local message
-
-  case ${#} in
-    0)
-      exception=Exception
-      message='something long'
-    ;;
-    1)
-      exception=Exception
-      message=$1
-    ;;
-    *)
-      exception=$1
-      message=$2
-    ;;
-  esac
+  local message=$1
+  local exit_code=${2:-0}
 
   local index=0
 
@@ -117,7 +102,7 @@ throw() {
     let ++index
   done
 
-  exit
+  exit "${exit_code}"
 }
 
 
