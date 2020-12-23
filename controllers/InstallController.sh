@@ -325,7 +325,7 @@ install_laradock() {
     local php_version
     php_version=$(get_config app.php_version)
     local php_multi_versions
-    php_multi_versions=$(get_config app.php_multi_version)
+    php_multi_versions=$(get_config app.php_multi_versions)
 
     php_multi_versions=($(echo $php_multi_versions | sed "s/${php_version}//g"))
 
