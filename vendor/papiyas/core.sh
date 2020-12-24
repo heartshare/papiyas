@@ -154,9 +154,23 @@ fi
 ## 几乎所有命令均调用此函数实现
 ## 
 ##################################################
-function docker_compose() {
+docker_compose() {
   local laradock_path=$(eval echo $(get_config app.laradock_path))
   local compose_file=$(get_config app.compose_file)
 
   docker-compose --project-directory=${laradock_path} -f"${laradock_path}/${compose_file}" "$@"
 }
+
+
+
+# build_success() {
+  
+# }
+
+# build_fail() {
+
+# }
+
+# has_build() {
+#   cat {}
+# }

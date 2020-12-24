@@ -62,9 +62,14 @@ Papiyas::run() {
   load_controller
 
 
+  local callback=${controller_name}::${action_name}
   # 7. 判断控制器是否存在
-  if ! function_exists "${controller_name}::${action_name}"; then
-    throw "${controller_name}控制器不存在${action_name}方法"
+  if ! function_exists "${callback}"; then
+    if function_exists "${controller_name}::rollback"; then
+      callback=${controller_name}::rollback
+    else
+      throw "${controller_name}控制器不存在${action_name}方法"
+    fi
   fi
 
   Papiyas::configure
@@ -90,7 +95,7 @@ Papiyas::run() {
   fi
 
   # 12. 调用对应的控制器和方法
-  ${controller_name}::${action_name}
+  ${callback}
 }
 
 ########################################################
