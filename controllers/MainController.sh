@@ -18,13 +18,7 @@ main::configure() {
 ## 
 ################################################################
 main::docker-compose() {
-  if [ "${params[0]}" == "build" ]; then
-    if docker_compose "${params[@]}"; then
-      echo
-    fi
-  else
-    docker_compose "${params[@]}"
-  fi
+  docker_compose "${params[@]}"
 }
 
 ################################################################

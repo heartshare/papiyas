@@ -37,10 +37,13 @@ export papiyas_controller_path=$papiyas_path'/../controllers'
 export papiyas_config_path=$papiyas_path'/../config'
 # 第三方库目录
 export papiyas_vendor_path=$papiyas_path'/../vendor'
+# 一些常见的拷贝文本目录
+export papiyas_extra_path="${papiyas_path}/../.papiyas"
 # 执行脚本名称
 export papiyas="${papiyas_path}/$(get_papiyas_name)"
 
 source ${papiyas_path}/declare.sh
+
 #######################################################
 
 load_vendors

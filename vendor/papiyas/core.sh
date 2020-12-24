@@ -163,14 +163,35 @@ docker_compose() {
 
 
 
-# build_success() {
+build_success() {
+  local container
+  local build_file="${papiyas_extra_path}/build_file"
   
-# }
+  for container in "$@"; do
+    # 不重复写入相同的容器
+    if [ ! "$(sed -n "/^${1}\$/p" "${build_file}")" == "${1}" ]; then
+      echo "${container}" >> "${build_file}"
+    fi
+  done
+}
 
-# build_fail() {
+has_build() {
+  local build_file="${papiyas_extra_path}/build_file"
 
-# }
+  # 构建文件不存在, 则表示未构建
+  if [ ! -f "${build_file}" ]; then
+    return 1
+  fi
 
-# has_build() {
-#   cat {}
-# }
+  # 强制重新构建
+  if [ -n "$(get_option force)" ]; then
+    return 1
+  fi
+
+  # 找到完全匹配的则表示已构建
+  if [ "$(sed -n "/^${1}\$/p" "${build_file}")" == "${1}" ]; then
+    return 0
+  fi
+
+  return 1
+}
