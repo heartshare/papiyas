@@ -24,3 +24,4 @@
 + dc
 + php
 + npm
++ mysql

@@ -1,11 +1,11 @@
-#!/usr/bin/env bash
+#!/uname/bin/env bash
 
 
 main::configure() {
-  ## 因为docker-compose进入容器有user选项, 这里如果填写user会导致冲突. 所以使用usr
-  add_option 'u' 'usr' $OPTION_OPTIONAL '容器操作的用户名' 'papiyas'
+  ## 因为docker-compose进入容器有user选项, 这里如果填写user会导致冲突. 所以使用uname
+  add_option '' 'uname' $OPTION_OPTIONAL '容器操作的用户名'
   ## 使用指定的php版本号来执行php指令
-  add_option ''  'php-version' $OPTION_REQUIRE 'PHP版本号'
+  add_option '' 'php-version' $OPTION_REQUIRE 'PHP版本号'
 }
 
 
@@ -43,7 +43,7 @@ main::dc() {
 ################################################################
 ## php
 ## 
-## @option -u, --usr (optional) 默认为www-data
+## @option --uname (optional) 默认为www-data
 ## @option --php-version 可指定要执行的php版本号, 确保已经构建了多版本PHP且容器已经运行
 ## @description: 
 ##   + 可执行原生php命令, 如无参数则会默认执行php -v
@@ -55,11 +55,8 @@ main::php() {
   local php_version=$(get_config app.php_version)
   local user_php_version=$(get_option php-version)
 
-  local user=$(get_option usr)
-
-  if [ "${user}" == 'papiyas' ]; then
-    user='www-data'
-  fi
+  local user=$(get_option uname)
+  user=${user:-www-data}
 
   local container
   if [ -z "${user_php_version}" ]; then
@@ -86,25 +83,38 @@ main::php() {
 ################################################################
 ## npm
 ## 
-## @option -u, --usr (optional) 默认为papiyas
+## @option --uname (optional) 默认为papiyas
 ## @description: 如果没有安装nodejs, 则该指令无法执行成功
 ## 
 ################################################################
 main::npm() {
-  docker_compose exec --user="$(get_option usr)" workspace npm "${params[@]}"
+  local user=$(get_option uname)
+  user=${user:papiyas}
+  docker_compose exec --user=$user workspace npm "${params[@]}"
 }
 
 
 ################################################################
 ## mysql
 ## 
-## @option -u, --usr (optional) 默认为mysql
-## @description: 
-## @memo: 
+## @option --uname (optional) 默认为mysql
+## @description:
+##   + 调用mysql服务容器的mysql指令
+##   + 如果不输入用户名和密码则会调用默认的非root账号进行登录(env.ini)
 ## 
 ################################################################
 main::mysql() {
-  docker_compose exec --user=mysql mysql mysql "${params[@]}"
+  local user=$(get_option uname)
+  user=${user:mysql}
+
+  # 当不填写内容时会已默认非root账号登录
+  # 如果用户更改过密码或账号则会无法登录
+  if [ ${#params[@]} -eq 0 ]; then
+    params[0]='-u'$(get_config env.mysql_user)
+    params[1]='-p'$(get_config env.mysql_password)
+  fi
+
+  docker_compose exec --user=$user mysql mysql "${params[@]}"
 }
 
 
@@ -117,7 +127,7 @@ main::rollback() {
   local action=$(get_action)
 
   if [[ "$action" =~ php ]]; then
-    bash ${papiyas} php -u$(get_option u) --php-version=${action#php}  "${params[@]}"
+    bash ${papiyas} php -u$(get_option uname) --php-version=${action#php}  "${params[@]}"
     return
   fi
 
