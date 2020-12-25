@@ -161,6 +161,143 @@ docker_compose() {
   docker-compose --project-directory=${laradock_path} -f"${laradock_path}/${compose_file}" "$@"
 }
 
+has_dockerfile_config() {
+  if get_line "/^# ${1} @papiyas/" $2; then
+    return 0;
+  fi
+
+  return 1
+}
+
+#######################################
+## 移除原生的配置信息, 并返回行号
+##
+## @params config_name 要删除的配置命令
+## @params dockerfile  要删除配置的dockerfile名称
+## @return 返回删除的配置命令所在行号
+## 
+#######################################
+remove_laradock_config() {
+  local dockerfile=$2
+  local start_line=$(sed -n "/^# ${1}:$/=" "${dockerfile}")
+
+  # 无需移除
+  if [ -z "${start_line}" ]; then 
+    return;
+  fi
+
+  let --start_line
+  sed -i "${start_line}, /^###############/d" "${dockerfile}"
+
+  echo ${start_line}
+}
+
+
+#######################################
+## 给dockerfile追加内容, 如果已经追加过了则不再追加
+##
+## @params config_name 要执行的配置命令
+## @params dockerfile_name 要追加的dockerfile名称
+## @params replace_line 要追加到dockerfile的第几行, 如果是末尾则不需要填写
+## 
+##
+#######################################
+append_dockerfile_config() {
+
+  if has_dockerfile_config $1; then
+    return;
+  fi
+
+  local dockerfile="${papiyas_extra_path}/Dockerfile"
+  local start_line=$(sed -n "/^## ${1}/=" "${dockerfile}")
+
+  if [ -z "${start_line}" ]; then 
+    throw "配置信息${1}无法找到, 请确认是否填写错误"
+  fi
+
+  let ++start_line
+  local end_line=$(sed -n "${start_line}, /^###############/=" "${dockerfile}" | tail -n 1)
+  let start_line-=2
+
+  local loop=0
+  local times=$(expr end_line - start_line)
+
+  local line
+  local replace_line={$3:-'$'}
+  sed -n "${start_line}, ${end_line}p" "${dockerfile}" | while true
+  do
+    read line
+    if [ -z "$line" ]; then
+      sed -i "${replace_line}G" "${2}"
+    else
+      echo $line | sed -i "${replace_line}a \\${line}" "${2}"
+    fi
+  done
+}
+
+
+has_compose_config() {
+  local container=$(str_lower $1)
+  local flag=${3:-'var'}
+  local compose_file=$(get_config app.compose_file)
+
+  case $flag in
+    var)
+      local value=$2
+      local search=$(sed -n "/${container}:/, /^###/p" ${compose_file} | sed -n '/args:/, /:/p' | grep "${value}=")
+
+      # 没找到对应的变量则返回假, 否则返回真
+      if [ -z "${search}" ]; then
+        return 1
+      else
+        return 0
+      fi
+    ;;
+    *)
+    ;;
+  esac
+
+  return 0
+}
+#######################################
+## 给compose file新增变量
+##
+## @params container 容器名称
+## @params value 变量定义
+## @params 
+## 
+##
+#######################################
+append_compose_config() {
+  if has_compose_config $1; then
+    return
+  fi
+
+  local compose_file=$(get_config app.compose_file)
+  local container=$1
+  local flag=${3:-'var'}
+
+
+  case $flag in
+    var)
+      local value=$2
+      local base_line=$(sed -n "/${container}:/=" ${compose_file}) 
+      local line=$(sed -n "/${container}:/, /^###/p" ${compose_file} | sed -n '/args:/, /:/=' | tail -n 1)
+      line=$(expr $base_line + $line - 2)
+      # 获取前缀空格数
+      local str=$(sed -n "${line}p" ${compose_file})
+      local blank=$(echo "$str" | sed -r 's/( +)[^ ]+.*/\1/')
+      # 追加变量定义
+      sed -i "${line}a - ${value}" ${compose_file}
+      # 空格补足
+      sed -i "$(expr ${line} + 1)s/^/${blank}/" ${compose_file}    
+    ;;
+    *)
+    ;;
+  esac
+
+}
+
 
 
 build_success() {

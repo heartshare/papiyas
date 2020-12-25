@@ -18,7 +18,6 @@ install::configure() {
   add_option '' 'pull' $OPTION_NULL '始终获取最新的镜像'
   add_option 'q' 'quiet' $OPTION_NULL '不打印任何输出'
   add_option '' 'no-cache' $OPTION_NULL '不使用缓存'
-  add_argument 'name' $INPUT_ARRAY '要构建的服务'
 }
 
 
@@ -227,6 +226,153 @@ function replace_env {
   done
 }
 
+###########################################################
+##
+## 同步配置信息, 该操作在安装laradock以及构建容器时均会执行一次
+## 该函数主要做3件事情
+## 1. 将用户自定义的数据同步到.env文件中去
+## 2. 补充主要容器的dockerfile的不足
+## 3. 修改compose_file, 为dockerfile提供对应变量
+##
+###########################################################
+sync_config() {
+  local laradock_path=$(eval echo $(get_config app.laradock_path))
+
+  ## 所有操作均在laradock_path目录下执行
+  if [ ! -d "${laradock_path}" ]; then
+    throw "${laradock_path}不存在"
+  fi
+
+  cd "${laradock_path}"
+
+  local env_example="env-example"
+
+  # 对原始文件进行备份
+  if [ ! -f "${env_example}.bak" ]; then
+    cp "${env_example}" "${env_example}.bak"
+  fi
+
+  # 在不对原配置文件更改的情况下去同步配置
+  local config_file="${papiyas_config_path}/env.ini"
+  local tmp_file="env.tmp.ini"
+
+  cp "${config_file}" "${tmp_file}"
+
+  ##################################################
+  ## NODEJS 配置
+  ##################################################
+
+  local install_node=$(get_config env.workspace_install_node)
+
+  # 只要没有将node_js安装选项设置为true, 统统认为不安装
+  if [ ${install_node} != true ]; then
+    sed -i 's/^WORKSPACE_NVM_NODEJS_ORG_MIRROR=.*$/WORKSPACE_NVM_NODEJS_ORG_MIRROR=/' "${tmp_file}"
+    sed -i 's/^WORKSPACE_NPM_REGISTRY=.*$/WORKSPACE_NPM_REGISTRY=/' "${tmp_file}"
+    sed -i 's/^WORKSPACE_INSTALL_NODE=.*$/WORKSPACE_INSTALL_NODE=false/' "${tmp_file}"
+    sed -i 's/^WORKSPACE_INSTALL_YARN=.*$/WORKSPACE_INSTALL_YARN=false/' "${tmp_file}"
+  fi
+  ##################################################
+
+
+  ##################################################
+  ## 其他基础信息配置
+  ##################################################
+
+  # php版本从app.ini中读取
+  sed -i "\$a PHP_VERSION=$(get_config app.php_version)" "${tmp_file}"
+
+  # 本地安装路径也从app.ini中读取, 该路径必须为绝对路径或相对于laradock_path的相对路径
+  local workspace_path=$(eval echo $(get_config app.workspace_path))
+  sed -i "\$a APP_CODE_PATH_HOST=${workspace_path}" "${tmp_file}"
+
+  ##################################################
+
+  # 去除所有注释开头的以及空行
+  env=$(cat "${tmp_file}" | awk -F '=' '{if($i !~ "(^#|^ *$)"){print $1, $0}}')
+
+  function replace_config {
+    while [ "$1" ]; do
+      sed -i.bak "s/^$1=.*$/$(str_convert "$2")/" "${env_example}"
+      shift 2
+    done
+  }
+
+  # repalce
+  replace_config $env
+  # save to laradock/.env
+  cp "${env_example}" ".env"  
+  # rollback
+  # cp $LARADOCK_PATH"/.env-example.papiyas.bak" $LARADOCK_PATH"/env-example"
+  rm -f "${tmp_file}"
+
+  ansi --yellow "配置文件数据同步成功..."
+
+
+  local compose_file=$(get_config app.compose_file)
+
+  if [ ! -f "${compose_file}.bak" ]; then
+    cp "${compose_file}" "${compose_file}.bak"
+  fi
+
+  ########################################################################
+  ##
+  ## workspace/Dockerfile
+  ##
+  ########################################################################
+  local workspace_dockerfile='workspace/Dockerfile'
+
+  if [ ! -f "${workspace_dockerfile}.bak" ]; then
+    cp "${workspace_dockerfile}" "${workspace_dockerfile}.bak"
+  fi
+
+  sed -i 's/ laradock / papiyas /g' "${workspace_dockerfile}"
+  sed -i 's/USER laradock/USER papiyas/g' "${workspace_dockerfile}"
+  sed -i 's/\/home\/laradock/\/home\/papiyas/g' "${workspace_dockerfile}" 
+  sed -i 's/laradock:laradock/papiyas:papiyas/g' "${workspace_dockerfile}"
+  sed -i '/WORKDIR \/var\/www/d' "${workspace_dockerfile}"
+
+  append_dockerfile_config 'WORKDIR' "${workspace_dockerfile}"
+
+  ## Nodejs 太难安装了, 所以替换为我自己的服务器的资源
+  if [ ${install_node} = true ]; then
+    sed -i "s/$(str_convert https://raw.githubusercontent.com/creationix/nvm/)/$(str_convert http://laradock.papiyas.cn/creationix/nvm/)/" "${workspace_dockerfile}"
+  fi
+
+
+  local install_symfony=$(get_config env.workspace_install_symfony)
+
+  if [ ${install_symfony} = true ]; then
+    local line=$(remove_laradock_config 'Symfony' "${workspace_dockerfile}")
+    append_dockerfile_config 'Symfony' "${workspace_dockerfile}" "${line}"
+  fi
+
+
+  ########################################################################
+  ##
+  ## php-fpm/Dockerfile
+  ##
+  ########################################################################
+  local php_fpm_dockerfile='php-fpm/Dockerfile'
+
+  if [ ! -f "${php_fpm_dockerfile}.bak" ]; then
+    cp "${php_fpm_dockerfile}" "${php_fpm_dockerfile}.bak"
+  fi
+
+  # 添加变量
+  append_compose_config 'php-fpm' 'APP_CODE_PATH_CONTAINER=${APP_CODE_PATH_CONTAINER}' "${php_fpm_dockerfile}"
+  append_compose_config 'php-fpm' 'TZ=${WORKSPACE_TIMEZONE}' "${php_fpm_dockerfile}"
+  
+  ## 动态更改工作目录
+  local line=$(get_line 'WORKDIR \/var\/www' "${php_fpm_dockerfile}")
+  append_dockerfile_config 'WORKDIR' "${workspace_dockerfile}" "${line}"
+  sed -i "${line}d" "${php_fpm_dockerfile}"
+
+
+  ## 设置时区 与 workspace 保持一致
+  line=$(expr $(get_line "# Clean up" "${php_fpm_dockerfile}") - 1)
+  append_dockerfile_config 'Set Timezone' "${workspace_dockerfile}" "${line}"
+}
+
 set_env() {
 
   ## 备份元配置文件, 每次安装都会调用元配置文件进行编辑
@@ -362,9 +508,7 @@ install_laradock() {
     # 要构建的容器列表
     local container=($(get_config app.server_list))
 
-    set_env
-
-    set_dockerfile
+    sync_config
 
     # 构建workspace
     if has_build workspace; then
@@ -403,7 +547,7 @@ install_laradock() {
       ansi --yellow "服务容器列表构建成功..."
 
       build_success ${container[@]}
-    fi 
+    fi
 
 
     ## 多版本PHP构建
@@ -451,11 +595,7 @@ install_laradock() {
 
 install::build() {
 
-  cd "${LARADOCK_PATH}"
-
-  set_env
-
-  set_dockerfile
+  sync_config
 
   local options=()
   local name=$(get_argument name)

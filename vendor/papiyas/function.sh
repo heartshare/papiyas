@@ -107,10 +107,10 @@ function str_convert() {
 ##
 ########################################################
 function get_line() {
-  local regex=$1
-  local file=$2
+  #local regex=$1
+  #local file=$2
   #grep -n "${regex}" "${file}" | cut -d ':' -f 1
-  sed -n -e "/${regex}/=" "${file}"
+  sed -n "/${1}/=" "${2}"
 }
 
 
