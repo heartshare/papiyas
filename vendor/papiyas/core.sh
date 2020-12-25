@@ -162,7 +162,7 @@ docker_compose() {
 }
 
 has_dockerfile_config() {
-  if get_line "/^# ${1} @papiyas/" $2; then
+  if get_line "/^## ${1} @papiyas/" $2; then
     return 0;
   fi
 
@@ -204,7 +204,7 @@ remove_laradock_config() {
 #######################################
 append_dockerfile_config() {
 
-  if has_dockerfile_config $1; then
+  if has_dockerfile_config $1 $2; then
     return;
   fi
 
@@ -220,10 +220,10 @@ append_dockerfile_config() {
   let start_line-=2
 
   local loop=0
-  local times=$(expr end_line - start_line)
+  local times=$(expr $end_line - $start_line)
 
   local line
-  local replace_line={$3:-'$'}
+  local replace_line=${3:-'$'}
   sed -n "${start_line}, ${end_line}p" "${dockerfile}" | while true
   do
     read line
@@ -232,6 +232,14 @@ append_dockerfile_config() {
     else
       echo $line | sed -i "${replace_line}a \\${line}" "${2}"
     fi
+
+    if [ $loop -lt $times ]; then
+      let ++loop   
+      continue
+    else
+      break
+    fi
+
   done
 }
 
