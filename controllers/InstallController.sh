@@ -93,7 +93,9 @@ install_docker() {
     sudo gpasswd -a "${USER}" docker
   fi
 
-  start_docker
+  # 如果启动了则重启， 否则就是启动。
+  # 对未重启的情况下可能导致无法下载镜像的问题
+  sudo systemctl restart docker
 
   # 无需退出终端即可拥有docker权限
   newgrp docker << INSTALL
@@ -366,13 +368,16 @@ sync_config() {
   
   ## 动态更改工作目录
   local line=$(get_line 'WORKDIR \/var\/www' "${php_fpm_dockerfile}")
-  append_dockerfile_config 'WORKDIR' "${workspace_dockerfile}" "${line}"
-  sed -i "${line}d" "${php_fpm_dockerfile}"
-
+  ## 防止2次错误处理
+  if [ -n "${line}" ]; then
+    append_dockerfile_config 'WORKDIR' "${workspace_dockerfile}" "${line}"
+    sed -i "${line}d" "${php_fpm_dockerfile}"
+  fi
 
   ## 设置时区 与 workspace 保持一致
   line=$(expr $(get_line "# Clean up" "${php_fpm_dockerfile}") - 1)
-  append_dockerfile_config 'Set Timezone' "${workspace_dockerfile}" "${line}"
+
+  append_dockerfile_config 'Set Timezone' "${php_fpm_dockerfile}" "${line}"
 }
 
 set_env() {

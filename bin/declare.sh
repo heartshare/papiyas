@@ -29,9 +29,7 @@ export action_name
 
 ### 失败次数  #####################################
 
-if [ -z "$FAILED_TIMES" ]; then
-  export FAILED_TIMES=1
-fi
+export FAILED_TIMES=0
 
 ### 经过处理后剩余的参数列表  ######################
 

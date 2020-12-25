@@ -162,7 +162,7 @@ docker_compose() {
 }
 
 has_dockerfile_config() {
-  if get_line "/^## ${1} @papiyas/" $2; then
+  if [ -n "$(get_line "^## ${1} @papiyas" $2)" ]; then
     return 0;
   fi
 
@@ -204,9 +204,11 @@ remove_laradock_config() {
 #######################################
 append_dockerfile_config() {
 
-  if has_dockerfile_config $1 $2; then
+  if has_dockerfile_config "$1" "$2"; then
     return;
   fi
+
+  echo "Not return $1"
 
   local dockerfile="${papiyas_extra_path}/Dockerfile"
   local start_line=$(sed -n "/^## ${1}/=" "${dockerfile}")
