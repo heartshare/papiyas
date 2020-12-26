@@ -80,10 +80,10 @@ project::create() {
       # extra option: --full
       # composer create-project symfony/website-skeleton project-name
       if [ -n "${full}" ]; then
-        command="create-project symfony/website-skeleton ${project_name} ${version}"
+        install_command="create-project symfony/website-skeleton ${project_name} ${version}"
       else
         # composer create-project symfony/skeleton project-name
-        command="create-project symfony/skeleton ${project_name} ${version}"
+        install_command="create-project symfony/skeleton ${project_name} ${version}"
       fi
     ;;
     *)
@@ -101,9 +101,9 @@ project_php_version=${php_container}
 "
 
   # 未来未优化在php多版本安装的时候
-  docker_compose exec "${php_container}"  php  /var/www/.composer/bin/composer config -g repo.packagist composer https://mirrors.aliyun.com/composer
+  docker_compose exec --user=www-data "${php_container}"  php  /var/www/.composer/bin/composer config -g repo.packagist composer https://mirrors.aliyun.com/composer
 
-  if docker_compose exec --user=www-data "${php_container}"  php  /var/www/.composer/bin/composer ${install_command}; then
+  if docker_compose exec --user=www-data "${php_container}" php /var/www/.composer/bin/composer ${install_command}; then
     ansi --red "将项目纳入到papiyas中管理: "
     docker_compose exec --user=papiyas workspace bash -c "echo -e '${project_config}' > ${project_name}/.papiyas"
 

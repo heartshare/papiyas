@@ -21,6 +21,13 @@
 + install:docker
 + install:laradock
 
+
+## project
+
+项目管理, 目前只写了创建项目(只支持laravel, symfony, yii)
+
++ project:create
+
 ## 其他命令
 
 + docker-compose  
