@@ -186,8 +186,14 @@ remove_laradock_config() {
     return;
   fi
 
+
+  let ++start_line
+  local end_line=$(sed -n "${start_line}, /^###############/=" "${dockerfile}" | tail -n 2 | head -n 1)
+  let start_line-=2
+
+  sed -i "${start_line}, ${end_line}d" "${dockerfile}"
+
   let --start_line
-  sed -i "${start_line}, /^###############/d" "${dockerfile}"
 
   echo ${start_line}
 }
@@ -223,7 +229,7 @@ append_dockerfile_config() {
   local times=$(expr $end_line - $start_line)
 
   local line
-  local replace_line=${3:-'$'}
+  local replace_line=${3:-$(sed -n "$=" "${2}")}
   sed -n "${start_line}, ${end_line}p" "${dockerfile}" | while true
   do
     read line
@@ -232,6 +238,8 @@ append_dockerfile_config() {
     else
       echo $line | sed -i "${replace_line}a \\${line}" "${2}"
     fi
+
+    let ++replace_line
 
     if [ $loop -lt $times ]; then
       let ++loop   

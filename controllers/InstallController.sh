@@ -18,6 +18,7 @@ install::configure() {
   add_option '' 'pull' $OPTION_NULL '始终获取最新的镜像'
   add_option 'q' 'quiet' $OPTION_NULL '不打印任何输出'
   add_option '' 'no-cache' $OPTION_NULL '不使用缓存'
+  add_argument 'name' $INPUT_REQUIRE
 }
 
 ################################################################
@@ -216,13 +217,6 @@ download_laradock() {
   fi
 }
 
-function replace_env {
-  while [ "$1" ]; do
-    sed -i.bak "s/^$1=.*$/$(str_convert "$2")/" "${LARADOCK_PATH}/env-example"
-    shift 2
-  done
-}
-
 ###########################################################
 ##
 ## 同步配置信息, 该操作在安装laradock以及构建容器时均会执行一次
@@ -339,9 +333,13 @@ sync_config() {
 
   local install_symfony=$(get_config env.workspace_install_symfony)
 
+ 
+
   if [ ${install_symfony} = true ]; then
     local line=$(remove_laradock_config 'Symfony' "${workspace_dockerfile}")
-    append_dockerfile_config 'Symfony' "${workspace_dockerfile}" "${line}"
+    if [ -n "${line}" ]; then
+      append_dockerfile_config 'Symfony' "${workspace_dockerfile}" "${line}"
+    fi
   fi
 
 
@@ -364,7 +362,7 @@ sync_config() {
   local line=$(get_line 'WORKDIR \/var\/www' "${php_fpm_dockerfile}")
   ## 防止2次错误处理
   if [ -n "${line}" ]; then
-    append_dockerfile_config 'WORKDIR' "${workspace_dockerfile}" "${line}"
+    append_dockerfile_config 'WORKDIR' "${php_fpm_dockerfile}" "${line}"
     sed -i "${line}d" "${php_fpm_dockerfile}"
   fi
 
@@ -372,127 +370,6 @@ sync_config() {
   line=$(expr $(get_line "# Clean up" "${php_fpm_dockerfile}") - 1)
 
   append_dockerfile_config 'Set Timezone' "${php_fpm_dockerfile}" "${line}"
-}
-
-set_env() {
-
-  ## 备份元配置文件, 每次安装都会调用元配置文件进行编辑
-  if [ ! -f "${LARADOCK_PATH}/.env-example.papiyas.bak" ]; then
-    cp "${LARADOCK_PATH}/env-example" "${LARADOCK_PATH}/.env-example.papiyas.bak"
-  else
-    cp "${LARADOCK_PATH}/.env-example.papiyas.bak" "${LARADOCK_PATH}/env-example"
-  fi
-
-  # delete the lines in env.ini which begin witch # or empty
-
-  # 判断是否需要安装nodejs
-  local install_node=$(get_config env.WORKSPACE_INSTALL_NODE)
-  local tmp_env_ini="${papiyas_config_path}/env.tmp.ini"
-
-  cp "${papiyas_config_path}/env.ini" "${papiyas_config_path}/env.tmp.ini"
-
-  ## 如果不安装node, 则需要将node相关关闭
-  if [ ! "${install_node}" == 'true' ]; then
-    sed -i 's/^WORKSPACE_NVM_NODEJS_ORG_MIRROR=.*$/WORKSPACE_NVM_NODEJS_ORG_MIRROR=/' "${tmp_env_ini}"
-    sed -i 's/^WORKSPACE_NPM_REGISTRY=.*$/WORKSPACE_NPM_REGISTRY=/' "${tmp_env_ini}"
-    sed -i 's/^WORKSPACE_INSTALL_NODE=.*$/WORKSPACE_INSTALL_NODE=false/' "${tmp_env_ini}"
-    sed -i 's/^WORKSPACE_INSTALL_YARN=.*$/WORKSPACE_INSTALL_YARN=false/' "${tmp_env_ini}"
-  fi
-
-  sed -i "\$a PHP_VERSION=$(get_config app.php_version)" "${tmp_env_ini}"
-  sed -i "\$a APP_CODE_PATH_HOST=${workspace_path}" "${tmp_env_ini}"
-  
-  env=$(cat "${tmp_env_ini}" | awk -F '=' '{if($i !~ "(^#|^ *$)"){print $1, $0}}')
-  # repalce
-  replace_env $env
-  # save to laradock/.env
-  cp "${LARADOCK_PATH}/env-example" "${LARADOCK_PATH}/.env"  
-  # rollback
-  # cp $LARADOCK_PATH"/.env-example.papiyas.bak" $LARADOCK_PATH"/env-example"
-  rm -f "${tmp_env_ini}"
-  ansi --yellow "配置信息设置成功"
-}
-
-
-set_dockerfile() {
-  # workspace
-  local workspace_dockerfile='workspace/Dockerfile'
-
-  local APP_CODE_PATH_CONTAINER=$(get_config env.APP_CODE_PATH_CONTAINER)
-
-  if [ -f 'workspace/Dockerfile.bak' ]; then
-    cp 'workspace/Dockerfile.bak' "${workspace_dockerfile}"
-  else
-    cp "${workspace_dockerfile}" 'workspace/Dockerfile.bak'
-  fi
-
-  if [ -f "${COMPOSE_FILE}.bak" ]; then
-    cp "${COMPOSE_FILE}.bak" "${COMPOSE_FILE}"
-  else
-    cp "${COMPOSE_FILE}" "${COMPOSE_FILE}.bak"
-  fi
-
-  sed -i 's/ laradock / papiyas /g' "${workspace_dockerfile}"
-  sed -i 's/USER laradock/USER papiyas/g' "${workspace_dockerfile}"
-  sed -i 's/\/home\/laradock/\/home\/papiyas/g' "${workspace_dockerfile}" 
-  sed -i 's/laradock:laradock/papiyas:papiyas/g' "${workspace_dockerfile}"
-  sed -i '/WORKDIR \/var\/www/d' "${workspace_dockerfile}"
-  sed -i '$a ARG APP_CODE_PATH_CONTAINER' "${workspace_dockerfile}"
-  sed -i '$a WORKDIR ${APP_CODE_PATH_CONTAINER}' "${workspace_dockerfile}"
-
-  local install_node=$(get_config env.WORKSPACE_INSTALL_NODE)
-
-  if [ "${install_node}" == 'true' ]; then
-    sed -i "s/$(str_convert https://raw.githubusercontent.com/creationix/nvm/)/$(str_convert http://laradock.papiyas.cn/creationix/nvm/)/" "${workspace_dockerfile}"
-  fi
-
-  local line
-  local str
-  local blank
-  line=$(expr $(get_line workspace: ${COMPOSE_FILE}) + 4)
-  str=$(sed -n "${line}p" ${COMPOSE_FILE})
-  blank=$(echo "$str" | sed -r 's/( +)[^ ]+.*/\1/')
-  sed -i "${line}a - APP_CODE_PATH_CONTAINER=\${APP_CODE_PATH_CONTAINER}" ${COMPOSE_FILE}
-  sed -i "$(expr ${line} + 1)s/^/${blank}/" ${COMPOSE_FILE}
-
-  local php_fpm_dockerfile='php-fpm/Dockerfile'
-
-  if [ -f 'php-fpm/Dockerfile.bak' ]; then
-    cp 'php-fpm/Dockerfile.bak' "${php_fpm_dockerfile}"
-  else
-    cp "${php_fpm_dockerfile}" 'php-fpm/Dockerfile.bak'
-  fi
-
-  sed -i 's/WORKDIR \/var\/www/ARG APP_CODE_PATH_CONTAINER\nWORKDIR ${APP_CODE_PATH_CONTAINER}/' "${php_fpm_dockerfile}"
-
-  line=$(expr $(get_line php-fpm: ${COMPOSE_FILE}) + 4)
-  str=$(sed -n "${line}p" ${COMPOSE_FILE})
-  blank=$(echo "$str" | sed -r 's/( +)[^ ]+.*/\1/')
-  sed -i "${line}a - APP_CODE_PATH_CONTAINER=\${APP_CODE_PATH_CONTAINER}" ${COMPOSE_FILE}
-  sed -i "$(expr ${line} + 1)s/^/${blank}/" ${COMPOSE_FILE}
-  let ++line
-
-  sed -i "${line}a - TZ=\${WORKSPACE_TIMEZONE}" ${COMPOSE_FILE}
-  sed -i "$(expr ${line} + 1)s/^/${blank}/" ${COMPOSE_FILE}
-
-
-  line=$(expr $(get_line "# Clean up" "${php_fpm_dockerfile}") - 1)
- 
-  local append=()
-  append[0]=###########################################################################
-  append[1]='# Set Timezone'
-  append[2]=###########################################################################
-  append[3]='\ '
-  append[4]='ARG TZ=UTC'
-  append[5]='ENV TZ ${TZ}'
-  append[6]='\ '
-  append[7]='RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone'
-  append[8]='\ '
-
-  for timezone in "${append[@]}"; do
-    sed -i "${line}a ${timezone}" ${php_fpm_dockerfile}
-    let ++line
-  done
 }
 
 install_laradock() {
@@ -507,7 +384,11 @@ install_laradock() {
     cd "${LARADOCK_PATH}"
 
     # 要构建的容器列表
-    local container=($(get_config app.server_list))
+    local container=$(get_config app.server_list)
+
+    container=($(echo "${container}" | sed -n 's/php\$/php-fpm/gp'))
+
+    # 由于新增了php$容器代表所有的php, 在安装的时候需要将之过滤. 并替换为php-fpm(如果不存在的话)
 
     sync_config
 

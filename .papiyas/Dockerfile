@@ -32,6 +32,7 @@ ARG INSTALL_SYMFONY=false
 
 RUN if [ ${INSTALL_SYMFONY} = true ]; then \
   mkdir -p /usr/local/bin \
+  && apt-get install wget -y \
   && wget https://get.symfony.com/cli/installer -O - | bash \
   && mv ~/.symfony/bin/symfony  /usr/local/bin/symfony \
   && rm -rf ~/.symfony/bin \

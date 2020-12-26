@@ -267,7 +267,7 @@ Papiyas::parse() {
 
 Papiyas::configure() {
   add_option 'h' 'help'  $OPTION_NULL '查看帮助文档'
-  add_option 'd'  'debug' $OPTION_NULL '调试信息'
+  add_option ''  'debug' $OPTION_NULL '调试信息'
 }
 
 ########################################################
