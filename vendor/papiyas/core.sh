@@ -208,8 +208,6 @@ append_dockerfile_config() {
     return;
   fi
 
-  echo "Not return $1"
-
   local dockerfile="${papiyas_extra_path}/Dockerfile"
   local start_line=$(sed -n "/^## ${1}/=" "${dockerfile}")
 
@@ -253,7 +251,7 @@ has_compose_config() {
 
   case $flag in
     var)
-      local value=$2
+      local value=$(echo $2 | awk -F'=' '{print $1}')
       local search=$(sed -n "/${container}:/, /^###/p" ${compose_file} | sed -n '/args:/, /:/p' | grep "${value}=")
 
       # 没找到对应的变量则返回假, 否则返回真
@@ -279,7 +277,7 @@ has_compose_config() {
 ##
 #######################################
 append_compose_config() {
-  if has_compose_config $1; then
+  if has_compose_config "${1}" "${2}"; then
     return
   fi
 
@@ -308,11 +306,13 @@ append_compose_config() {
 
 }
 
-
-
 build_success() {
   local container
   local build_file="${papiyas_extra_path}/build_file"
+
+  if [ ! -f "${build_file}" ]; then
+    touch "${build_file}"
+  fi
   
   for container in "$@"; do
     # 不重复写入相同的容器
@@ -327,11 +327,6 @@ has_build() {
 
   # 构建文件不存在, 则表示未构建
   if [ ! -f "${build_file}" ]; then
-    return 1
-  fi
-
-  # 强制重新构建
-  if [ -n "$(get_option force)" ]; then
     return 1
   fi
 

@@ -13,6 +13,8 @@ server::configure() {
 ## +. 当要启动的服务名称为空时, 会启动配置文件中的SERVER_LIST
 ## +. 如果要启动的服务名称不为空, 则会直接启动这些服务 
 ## +. 如果服务名称与SERVER_LIST同时为空, 则会报错并结束程序
+## @notice:
+## + 由于新增多版本php原因, 有时候要启动多个php, 一个一个启动略微麻烦. 可以通过php$启动所有的php版本
 ## 
 ## 底层实际调用 docker-compose up -d server_name
 ################################################################
@@ -20,16 +22,53 @@ server::start() {
   local server_name=$(get_argument server_name)
 
   ## 如果用户未填写服务名, 则读取配置列表中的服务名称
-  if [ -z "$server_name" ]; then
+  if [ -z "${server_name}" ]; then
     server_name=$(get_config app.server_list)
   fi
 
+  
+
   ## 如果配置列表中的服务名称依旧为空, 则报错
-  if [ -z "$server_name" ]; then
+  server_name=$(parse_server_name "${server_name}")
+
+  if [ -z "${server_name}" ]; then
     throw '读取配置信息失败, 请完善配置信息或填写要启动的服务名称'
   fi
 
   docker_compose up -d $server_name
+}
+
+## PHP解析
+parse_server_name() {
+  local server_name=$1
+
+  # 通过php*来快捷启动所有的php版本
+  if echo "${server_name}" | grep 'php\$' &> /dev/null; then
+    server_name=$(echo "${server_name}" | sed -n 's/php\$//gp')
+    # 判断是否开启了多版本php
+    local php_multi=$(get_config app.php_multi)
+
+    if [ "${php_multi}" = true ]; then
+      local php_version=$(get_config app.php_version)
+      local php_multi_versions=$(get_config app.php_multi_versions)
+      # 将重复的php版本进行过滤
+      php_multi_versions=($(echo "${php_multi_versions}" | sed "s/${php_version}//g"))
+
+      if [ ${#php_multi_versions[@]} -gt 0 ]; then
+        local version
+        for version in "${php_multi_versions[@]}"; do
+          server_name+=" php${version}"
+        done
+      fi
+    fi
+
+    # 无论是否多版本都会启动php-fpm
+    if ! echo "${server_name}" | grep 'php-fpm' &> /dev/null; then
+      server_name+=" php-fpm"
+    fi
+  fi
+
+  echo "${server_name}"
 }
 
 
@@ -58,6 +97,8 @@ server::restart() {
   if [ -z "$server_name" ]; then
     server_name=$(get_config app.server_list)
   fi
+
+  server_name=$(parse_server_name "${server_name}")
 
   ## 如果配置列表中的服务名称依旧为空, 则重启所有服务
   if [ -z "$server_name" ]; then
@@ -95,6 +136,8 @@ server::stop() {
     server_name=$(get_config app.server_list)
   fi
 
+  server_name=$(parse_server_name "${server_name}")
+
   ## 如果配置列表中的服务名称依旧为空, 则重启所有服务
   if [ -z "$server_name" ]; then
     docker_compose stop
@@ -118,6 +161,8 @@ server::ps() {
   local server_name=$(get_argument server_name)
 
   ## 如果用户未填写服务名, 则读取配置列表中的服务名称
+  server_name=$(parse_server_name "${server_name}")
+
   if [ -z "$server_name" ]; then
     docker_compose ps
   else

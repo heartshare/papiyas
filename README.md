@@ -15,6 +15,9 @@
 目前在安装Laradock部分的配置数据较小, 之后会把常用的放进来.
 如果有想要配置的但是没有的可以直接从laradock的env-example中粘贴过来放入env.ini中即可
 
+在安装laradock过程中构建成功的容器不会再次构建(即使修改了配置也不行), 后续可以通过clear命令或者-f参数来解决这个问题
+当然安装成功后也不建议重复安装, 可以使用单独的build命令来重新构建
+
 + install:docker
 + install:laradock
 

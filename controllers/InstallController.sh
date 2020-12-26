@@ -20,13 +20,6 @@ install::configure() {
   add_option '' 'no-cache' $OPTION_NULL '不使用缓存'
 }
 
-
-export LARADOCK_PATH=$(eval echo $(get_config app.laradock_path))
-export COMPOSE_FILE=$(get_config app.compose_file)
-# 工作目录
-export workspace_path=$(eval echo $(get_config app.workspace_path))
-
-
 ################################################################
 ## install:docker
 ## 
@@ -335,6 +328,7 @@ sync_config() {
   sed -i 's/laradock:laradock/papiyas:papiyas/g' "${workspace_dockerfile}"
   sed -i '/WORKDIR \/var\/www/d' "${workspace_dockerfile}"
 
+  append_compose_config 'workspace' 'APP_CODE_PATH_CONTAINER=${APP_CODE_PATH_CONTAINER}'
   append_dockerfile_config 'WORKDIR' "${workspace_dockerfile}"
 
   ## Nodejs 太难安装了, 所以替换为我自己的服务器的资源
@@ -363,8 +357,8 @@ sync_config() {
   fi
 
   # 添加变量
-  append_compose_config 'php-fpm' 'APP_CODE_PATH_CONTAINER=${APP_CODE_PATH_CONTAINER}' "${php_fpm_dockerfile}"
-  append_compose_config 'php-fpm' 'TZ=${WORKSPACE_TIMEZONE}' "${php_fpm_dockerfile}"
+  append_compose_config 'php-fpm' 'APP_CODE_PATH_CONTAINER=${APP_CODE_PATH_CONTAINER}'
+  append_compose_config 'php-fpm' 'TZ=${WORKSPACE_TIMEZONE}'
   
   ## 动态更改工作目录
   local line=$(get_line 'WORKDIR \/var\/www' "${php_fpm_dockerfile}")
@@ -547,17 +541,23 @@ install_laradock() {
 
       ansi --yellow "开始构建服务容器列表..."
 
-      if ! docker_compose build ${no_cache} "${container[@]}"; then
-        throw "服务容器构建失败" 1
-      fi
+      local c
+      for c in "${container[@]}"; do
+        if ! has_build $c; then
+          if ! docker_compose build ${no_cache} "${c}"; then
+            throw "服务容器${c}构建失败" 1
+          fi
+
+          build_success "${c}"
+        fi  
+      done
 
       ansi --yellow "服务容器列表构建成功..."
-
-      build_success ${container[@]}
     fi
 
 
     ## 多版本PHP构建
+    ## 目前还是使用laradock的Dockerfile进行构建, 后续可能会独立出来进行一些适配的修改
     ## 必须保证php_multi为true, 且php_multi_versions不为空
     local php_multi=$(get_config app.php_multi)
     local php_version=$(get_config app.php_version)
@@ -579,6 +579,8 @@ install_laradock() {
           local yml="${build}.yml"
           sed -n '/### PHP-FPM/, /^$/p' $COMPOSE_FILE > tmp.yml
           cp -r php-fpm "${build}"
+          rm -f "${build}/php*ini"
+          cp "php-fpm/${build}.ini" "${build}"
           cp tmp.yml "${yml}"
           sed -i "s/PHP-FPM/PHP${version}/" "${yml}" 
           sed -i "s/php-fpm/php${version}/" "${yml}" 
