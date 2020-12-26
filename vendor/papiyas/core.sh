@@ -269,6 +269,15 @@ has_compose_config() {
         return 0
       fi
     ;;
+    container)
+      local search=$(sed -n "/${container}:/=" ${compose_file})
+
+      if [ -z "${search}" ]; then
+        return 1;
+      else
+        return 0;
+      fi
+    ;;
     *)
     ;;
   esac

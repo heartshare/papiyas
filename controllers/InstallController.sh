@@ -466,7 +466,9 @@ install_laradock() {
           sed -i "s/PHP-FPM/PHP${version}/" "${yml}" 
           sed -i "s/php-fpm/php${version}/" "${yml}" 
           sed -i "s/\${PHP_VERSION}/${version}/" "${yml}"
-          echo -e "$(cat php${version}.yml)" >> $COMPOSE_FILE
+          if ! has_compose_config "${build}" '' 'container'; then
+            echo -e "$(cat ${yml})" >> $COMPOSE_FILE
+          fi
 
           ansi --yellow "正在构建${build}..."
           if ! docker-compose build ${no_cache} "${build}"; then
@@ -499,7 +501,7 @@ install::build() {
   fi
 
   if [ -n "$(get_option pull)" ]; then
-    options[${#options[@]}]='--pull'
+    options[${#options[@]}]='--pull'  
   fi
 
   if ! docker_compose build "${options[@]}" "${name}" ; then
