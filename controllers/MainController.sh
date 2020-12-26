@@ -43,6 +43,11 @@ main::dc() {
 ##   + 可执行原生php命令, 如无参数则会默认执行php -v
 ##   + 如果觉得指定版本执行太麻烦, 可以使用简写来代替
 ##     papiyas php --php-version=7.4 等同于 papiyas php7.4
+## @append:
+##   + 以下特性仅在被papiyas管理的项目中起作用
+##   + 调用php指令时会自动调用该项目创建时所用的php版本
+##   + 在laravel项目中可以将papiyas php artisan命令简写为papiyas artisan
+##   + 在symfony项目中可以将papiyas php console命令简写为papiyas console
 ## 
 ################################################################
 main::php() {
@@ -53,34 +58,39 @@ main::php() {
   user=${user:-www-data}
 
   local container
-  if [ -z "${user_php_version}" ]; then
-    container="php-fpm"
-  elif [ "${php_version}" == "${user_php_version}" ]; then
-    container='php-fpm'
-  else
-    container='php'${user_php_version}
-  fi
 
-  # if ! has_build "$container"; then
-  #   throw "${container}容器未安装, 无法执行."
-  # fi
+
+  if [ -f ".papiyas" ]; then
+    source .papiyas
+
+    container=$project_php_version
+
+    if [ -z "${container}" ]; then
+      throw "项目管理文件缺失, 无法获取php版本号"
+    fi
+
+    if [ ${params[0]} == 'artisan' ] && [ ${project_framework} == 'laravel' ]; then
+      params[0]="${project_name}/artisan"
+    elif [ ${params[0]} == 'console' ]  && [ ${project_framework} == 'symfony' ]; then
+      params[0]="${project_name}/bin/console"
+    fi
+
+  else
+    if [ -z "${user_php_version}" ]; then
+      container="php-fpm"
+    elif [ "${php_version}" == "${user_php_version}" ]; then
+      container='php-fpm'
+    else
+      container='php'${user_php_version}
+    fi
+  fi
 
   ## 防止空php指令卡住, 默认显示版本号
   if [ ${#params[@]} -eq 0 ]; then
     params[0]='-v'
   fi
   
-  docker_compose exec --user=$user $container php "${params[@]}";
-}
-
-
-call_at_project() {
-  if [ ! -f ".papiyas" ]; then
-    return
-  fi
-
-
-  
+  docker_compose exec --user=$user $container php ${params[@]};
 }
 
 
@@ -130,8 +140,21 @@ main::list() {
 main::rollback() {
   local action=$(get_action)
 
+  if [ -f '.papiyas' ]; then
+    source '.papiyas'
+
+    if [ $action == 'artisan' ] && [ ${project_framework} == 'laravel' ]; then
+      bash ${papiyas} php --uname=$(get_option uname) artisan "${params[@]}"
+      return
+    elif [ $action == 'console' ]  && [ ${project_framework} == 'symfony' ]; then
+      bash ${papiyas} php --uname=$(get_option uname) console "${params[@]}"
+      return
+    fi
+  fi
+
+  ## 快捷php版本
   if [[ "$action" =~ php ]]; then
-    bash ${papiyas} php -u$(get_option uname) --php-version=${action#php}  "${params[@]}"
+    bash ${papiyas} php --uname=$(get_option uname) --php-version=${action#php}  "${params[@]}"
     return
   fi
 

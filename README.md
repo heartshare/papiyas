@@ -30,6 +30,8 @@
 
 ## 其他命令
 
+在papiyas管理的项目中调用php命令时会读取创建时使用的php版本, 更多详细请查看`./bin/papiyas php -h`
+
 + docker-compose  
 + dc
 + php
