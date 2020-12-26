@@ -509,3 +509,30 @@ install::build() {
   fi
 }
 
+
+
+install::go() {
+  if ! command_exists wget; then
+    if ! sudo yum install wget -y; then
+      throw "安装wget失败"
+    fi
+  fi
+
+  if ! wget https://dl.google.com/go/go1.15.6.linux-amd64.tar.gz; then
+    throw "下载go安装包失败"
+  fi
+
+  if ! sudo tar -C /usr/local -xzf go1.15.6.linux-amd64.tar.gz; then
+    throw "解压go语言包失败"
+  fi
+
+  if ! cat /etc/profile | grep '/usr/local/go/bin' &> /dev/null; then
+    cat /etc/profile > ./tmp.profile
+    echo 'export PATH=$PATH:/usr/local/go/bin' >> ./tmp.profile
+    sudo cp ./tmp.profile /etc/profile
+    rm -f ./tmp.profile
+  fi
+  
+  ansi --bold "安装完毕, 请运行 source /etc/profile 之后再执行 go version 即可"
+}
+
