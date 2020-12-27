@@ -29,88 +29,10 @@ install::configure() {
 ##
 ################################################################
 install::docker() {
-  install_docker
-}
 
-check_enviroment() {
-  if [ ! -f /etc/centos-release ] && ! command -v yum &> /dev/null; then
-    throw "您当前的系统并非CentOS, 无法运行该命令"
-  fi
+  get_os
 
-  local version
-  version=$(cat /etc/centos-release | awk '{print $4}' | awk -F'.' '{print $1}')
-
-  if [ ! "$version" -eq 7 ] && [ ! "$version" -eq 8 ]; then
-    throw "目前仅限CentOS7和CentOS8能够安装Docker"
-  fi
-
-  echo "centos${version}"
-}
-
-install_docker() {
-  local os=$(check_enviroment)
-
-  # Docker源
-  local docker_repo=$(get_config app.docker_repo)
-
-  if [ -z "${docker_repo}" ]; then
-    docker_repo='http://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo'
-  fi
-
-  if ! command_exists docker; then
-    if ! sudo yum install yum-utils -y; then
-      throw "yum utils 安装失败" 1
-    fi
-
-    if ! sudo yum-config-manager --add-repo "${docker_repo}"; then
-      throw "设置docker源失败" 1
-    fi
-
-    install_docker_${os}
-
-    # docker没有启动前/etc/docker目录是不存在的, 无法进行拷贝.所以先启动docker
-    sudo systemctl start docker
-    sudo cp "${papiyas_extra_path}/daemon.json" /etc/docker/daemon.json
-    sudo systemctl daemon-reload
-    sudo systemctl enable docker
-
-    install_docker_compose
-
-  else
-    if ! command_exists docker-compose; then
-      install_docker_compose
-    fi
-  fi
-
-  # 给与当前用户docker权限, 需要推出终端重进才有效果
-  if ! groups "${USER}" | grep docker &> /dev/null; then
-    sudo gpasswd -a "${USER}" docker
-  fi
-
-  # 如果启动了则重启， 否则就是启动。
-  # 对未重启的情况下可能导致无法下载镜像的问题
-  sudo systemctl restart docker
-
-  # 无需退出终端即可拥有docker权限
-  newgrp docker << INSTALL
-    bash ${papiyas} install:laradock
-INSTALL
-}
-
-install_docker_centos7() {
-  if ! sudo yum install docker-ce docker-ce-cli containerd.io -y; then
-    throw "Docker安装失败!" 1
-  fi
-}
-
-install_docker_centos8() {
-  if ! sudo yum install https://mirrors.aliyun.com/docker-ce/linux/centos/7/x86_64/stable/Packages/containerd.io-1.2.6-3.3.el7.x86_64.rpm -y; then
-    throw "安装containerd失败" 1
-  fi
-
-  if ! sudo yum install docker-ce docker-ce-cli -y; then
-    throw "Docker安装失败!" 1
-  fi
+  install_docker_"${OS}"
 }
 
 ## 启动docker
@@ -191,9 +113,7 @@ check_requirements() {
   fi
 
   if ! command_exists git; then
-    if ! sudo yum install git -y; then
-      throw "Git安装失败, 无法下载Laradock" 1
-    fi
+    install_git_{OS}
   fi
 }
 
