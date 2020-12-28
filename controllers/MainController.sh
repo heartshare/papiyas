@@ -133,7 +133,41 @@ main::mysql() {
 
 
 main::list() {
+  local papiyas_version=0.2.0
+  echo -e "\033[34mPapiyas\033[0m - Laradock Manager Script: \033[31m${papiyas_version}\033[0m\n"
+  echo -e "\033[33mUsage:\033[0m"
+  echo -e "    command [options] [arguments]\n"
+
+  echo -e "\033[33mAvailable commands:\033[0m"
+  echo -e "\033[31m    list\033[0m                     显示Papiyas命令列表"
+  echo -e "\033[31m    docker-compose\033[0m           执行docker-compose原生命令, 简写dc"
+  echo -e "\033[31m    php\033[0m                      执行php命令"
+  echo -e "\033[31m    npm\033[0m                      执行npm命令"
+  echo -e "\033[31m    mysql\033[0m                    执行mysql命令"
+
   echo
+
+  echo -e "\033[33m  server:\033[0m"
+  echo -e "\033[31m    server:start\033[0m             启动服务容器"
+  echo -e "\033[31m    server:stop\033[0m              停止服务容器"
+  echo -e "\033[31m    server:restart\033[0m           重启服务容器"
+  echo -e "\033[31m    server:remove\033[0m            移除所有服务容器"
+  echo -e "\033[31m    server:ps\033[0m                查看服务容器状态"
+  echo -e "\033[31m    server:top\033[0m               查看服务容器详细状态"
+
+  echo
+
+  echo -e "\033[33m  install:\033[0m"
+  echo -e "\033[31m    install:docker\033[0m           安装docker和laradock"
+  echo -e "\033[31m    install:laradock\033[0m         安装laradock"
+
+  echo
+
+  echo -e "\033[33m  project:\033[0m"
+  echo -e "\033[31m    project:create\033[0m           创建一个新项目, 可支持laravel, symfony, yii"
+
+  echo
+  ansi --blue "目前papiyas正处于开发阶段, 在使用方面可能有诸多不足需要优化或者有影响使用的bug, 敬请谅解"
 }
 
 

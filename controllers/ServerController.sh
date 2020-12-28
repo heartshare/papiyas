@@ -172,6 +172,28 @@ server::ps() {
 
 
 ################################################################
+## server:top
+## @params server_name (optional) 要查看状态的服务名称
+## @description: 
+## +. 当服务名称为空时, 会查看所有已运行的服务名称
+## +. 如果服务名称不为空, 则会查看这些服务的状态
+## 
+## 底层实际调用 docker-compose top server_name
+################################################################
+server::top() {
+  local server_name=$(get_argument server_name)
+
+  ## 如果用户未填写服务名, 则读取配置列表中的服务名称
+  server_name=$(parse_server_name "${server_name}")
+
+  if [ -z "$server_name" ]; then
+    docker_compose top
+  else
+    docker_compose top $server_name
+  fi
+}
+
+################################################################
 ## server:remove
 ## @options -f, --force 不进行提示, 强制移除服务
 ## @description: 
