@@ -8,7 +8,7 @@ get_os() {
     local version
     version=$(cat /etc/centos-release | awk '{print $4}' | awk -F'.' '{print $1}')
     OS="centos"
-    OS_VERSION="centos{version}"
+    OS_VERSION="centos${version}"
   elif uname -a | grep 'Ubuntu' &> /dev/null && command_exists apt-get; then
     OS="ubuntu"
   fi
