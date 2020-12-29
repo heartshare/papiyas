@@ -48,17 +48,6 @@ install_docker_compose() {
   sudo chmod +x /usr/local/bin/docker-compose
 }
 
-## 判断用户是否有执行docker的权限
-permission_denied() {
-    docker ps &> /tmp/warning
-
-    if cat /tmp/warning | grep 'permission denied' &> /dev/null; then
-       return 0
-    fi
-
-    return 1
-}
-
 ################################################################
 ## install:laradock
 ## 
@@ -73,13 +62,7 @@ install::laradock() {
       throw "请先运行papiyas install:docker安装docker后再安装laradock"
     fi
 
-    if permission_denied; then
-      newgrp docker
-    fi
-
-    if ! docker ps &> /dev/null; then
-      throw "Docker未启动, 无法安装laradock"
-    fi
+    check_permission
 
     local laradock_path=$(get_laradock_path)
     install_laradock
@@ -162,6 +145,12 @@ install_laradock() {
         throw "workspace构建失败" 1
       fi
     fi
+        local container_path=$(get_config env.app_code_path_container)
+        docker_compose up -d workspace
+        local user=$(get_workspace_user)
+        docker_compose exec workspace bash -c "chown -R ${user}:${user} ${container_path}"
+
+    exit
 
     # 构建docker-in-docker
     if has_build docker-in-docker; then
@@ -214,14 +203,7 @@ install::php() {
   if [ "${1}" != false ]; then
     sync_config
 
-    if permission_denied; then
-      newgrp docker
-    fi
-
-    if ! docker ps &> /dev/null; then
-      throw "Docker未启动, 无法安装laradock"
-    fi
-
+    check_permission
   fi
 
 

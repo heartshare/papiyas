@@ -124,6 +124,27 @@ get_workspace_path() {
 }
 
 
+check_permission() {
+  if permission_denied; then
+    newgrp docker
+  fi
+
+  if ! docker ps &> /dev/null; then
+    throw "Docker未启动, 请先启动后再进行操作"
+  fi
+}
+
+permission_denied() {
+  docker ps &> /tmp/warning
+
+  if cat /tmp/warning | grep 'permission denied' &> /dev/null; then
+     return 0
+  fi
+
+  return 1
+}
+
+
 
 ###########################################################
 ##
@@ -181,7 +202,7 @@ sync_config() {
   sed -i "\$a PHP_VERSION=$(get_config app.php_version)" "${tmp_file}"
 
   # 本地安装路径也从app.ini中读取, 该路径必须为绝对路径或相对于laradock_path的相对路径
-  local workspace_path=$(eval echo $(get_config app.workspace_path))
+  local workspace_path=$(get_workspace_path)
   sed -i "\$a APP_CODE_PATH_HOST=${workspace_path}" "${tmp_file}"
 
   ##################################################
