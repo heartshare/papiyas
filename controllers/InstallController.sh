@@ -1,17 +1,12 @@
 #!/usr/bin/env bash
 
+# trap 'retry' EXIT
 
-
-trap 'retry $?' EXIT
-
-retry() {
-  if [ ! $1 -eq 0 ] && [ $FAILED_TIMES -lt 4 ]; then
-    let ++$FAILED_TIMES
-    ansi --red "第${FAILED_TIMES}次安装失败, 正在重新尝试运行...."
-    sleep 3
-    $(get_controller)::$(get_action)
-  fi
-}
+# retry() {
+#   ansi --red "安装失败, 正在重新尝试运行...."
+#   sleep 3
+#   $(get_controller)::$(get_action)
+# }
 
 install::configure() {
   add_option 'f' 'force' $OPTION_NULL '是否强制构建'
@@ -78,21 +73,32 @@ install::laradock() {
       throw "请先运行papiyas install:docker安装docker后再安装laradock"
     fi
 
-    if permission_denied; then
+if [ -z "$(get_option force)" ]; then
       newgrp docker << INSTALL
-        bash ${papiyas} install:laradock
+        bash ${papiyas} install:laradock -f
 INSTALL
     else
        if ! docker ps &> /dev/null; then
          throw "Docker未启动, 无法安装laradock"
        fi
 
-       # 安装laradock时需要用到的一些变量
        local laradock_path=$(get_laradock_path)
-       local compose_file=$(get_compose_file)
-
        install_laradock
     fi
+
+
+#     if permission_denied; then
+#       newgrp docker << INSTALL
+#         bash ${papiyas} install:laradock
+# INSTALL
+#     else
+#        if ! docker ps &> /dev/null; then
+#          throw "Docker未启动, 无法安装laradock"
+#        fi
+
+#        local laradock_path=$(get_laradock_path)
+#        install_laradock
+#     fi
 }
 
 ######################################################################
@@ -163,9 +169,7 @@ install_laradock() {
     else
       if docker_compose build workspace; then
         build_success workspace
-        local container_path=$(get_config env.app_code_path_container)
         docker_compose up -d workspace
-        docker_compose exec workspace bash -c "chown -R papiyas:papiyas ${container_path}" 
         ansi --yellow "Workspace构建成功..."
       else
         throw "workspace构建失败" 1
@@ -202,51 +206,87 @@ install_laradock() {
     fi
 
 
-    ## 多版本PHP构建
-    ## 目前还是使用laradock的Dockerfile进行构建, 后续可能会独立出来进行一些适配的修改
-    ## 必须保证php_multi为true, 且php_multi_versions不为空
-    local php_multi=$(get_config app.php_multi)
-    local php_version=$(get_config app.php_version)
-    local php_multi_versions=$(get_config app.php_multi_versions)
+    install::php false
 
-    # 将重复的php版本进行过滤
-    php_multi_versions=($(echo $php_multi_versions | sed "s/${php_version}//g"))
-
-    if [ "${php_multi}" == 'true' ] && [ "${#php_multi_versions[@]}" -gt 0 ]; then
-      ansi --yellow "开始构建多版本PHP, 请耐心等待"
-
-      local version
-      for version in "${php_multi_versions[@]}"; do
-        local build="php${version}"
-
-        if has_build "${build}"; then
-          ansi --blue "容器${build}已经构建完成..."
-        else
-          local yml="${build}.yml"
-          sed -n '/### PHP-FPM/, /^$/p' $COMPOSE_FILE > tmp.yml
-          cp -r php-fpm "${build}"
-          rm -f "${build}/php*ini"
-          cp "php-fpm/${build}.ini" "${build}"
-          cp tmp.yml "${yml}"
-          sed -i "s/PHP-FPM/PHP${version}/" "${yml}" 
-          sed -i "s/php-fpm/php${version}/" "${yml}" 
-          sed -i "s/\${PHP_VERSION}/${version}/" "${yml}"
-          if ! has_compose_config "${build}" '' 'container'; then
-            echo -e "$(cat ${yml})" >> $COMPOSE_FILE
-          fi
-
-          ansi --yellow "正在构建${build}..."
-          if ! docker-compose build ${no_cache} "${build}"; then
-            throw "${build}构建失败"
-          fi
-
-          ansi --yellow "${build}构建完毕..."
-          build_success ${build}
-        fi
-      done
-    fi
-
+   
     ansi --yellow "Laradock安装成功! 请尽情享受."
+}
+
+
+################################################################
+## install:php
+## 
+## @description: 单独安装多版本php
+## @notice: 
+##
+##
+################################################################
+install::php() {
+
+  # 不重复进行同步配置文件
+  if [ "${1}" != false ]; then
+    sync_config
+  fi
+
+
+  local compose_file=$(get_compose_file)
+  local workspace_path=$(get_workspace_path)
+
+  ## 多版本PHP构建
+  ## 目前还是使用laradock的Dockerfile进行构建, 后续可能会独立出来进行一些适配的修改
+  ## 必须保证php_multi为true, 且php_multi_versions不为空
+  local php_multi=$(get_config app.php_multi)
+  local php_version=$(get_config app.php_version)
+  local php_multi_versions=$(get_config app.php_multi_versions)
+
+  if [ ! -f "${workspace_path}/.composer/bin/composer" ]; then
+    docker_compose exec --user="$(get_workspace_user)" workspace bash -c "mkdir -p .composer/bin/ && cp /usr/local/bin/composer .composer/bin/composer"
+  fi
+
+
+  # 将重复的php版本进行过滤
+  php_multi_versions=($(echo $php_multi_versions | sed "s/${php_version}//g"))
+
+  if [ "${php_multi}" == 'true' ] && [ "${#php_multi_versions[@]}" -gt 0 ]; then
+    ansi --yellow "开始构建多版本PHP, 请耐心等待"
+
+    local version
+    local composer_repo=$(get_config env.WORKSPACE_COMPOSER_REPO_PACKAGIST)
+    for version in "${php_multi_versions[@]}"; do
+      local build="php${version}"
+
+      if has_build "${build}"; then
+        ansi --blue "容器${build}已经构建完成..."
+      else
+        local yml="${build}.yml"
+        sed -n '/### PHP-FPM/, /^$/p' $compose_file > tmp.yml
+        cp -r php-fpm "${build}"
+        rm -f "${build}/php*ini"
+        cp "php-fpm/${build}.ini" "${build}"
+        cp tmp.yml "${yml}"
+        sed -i "s/PHP-FPM/PHP${version}/" "${yml}" 
+        sed -i "s/php-fpm/php${version}/" "${yml}" 
+        sed -i "s/\${PHP_VERSION}/${version}/" "${yml}"
+        if ! has_compose_config "${build}" '' 'container'; then
+          echo -e "$(cat ${yml})" >> $compose_file
+        fi
+
+        ansi --yellow "正在构建${build}..."
+        if ! docker-compose build "${build}"; then
+          throw "${build}构建失败"
+        fi
+
+        if [ -n "${composer_repo}" ]; then
+          docker_compose exec --user=www-data "${build}"  php  /var/www/.composer/bin/composer config -g repo.packagist composer "${composer_repo}"
+        fi
+
+        ansi --yellow "${build}构建完毕..."
+        build_success ${build}
+      fi
+    done
+  fi
+
+   ansi --yellow "多版本php构建完成..."
 }
 
 

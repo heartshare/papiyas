@@ -81,7 +81,7 @@ get_laradock_path() {
 }
 
 ##################################################
-## 获取Laradock_path的信息, 防止为空等非法路径
+## 获取compose_file的信息, 防止为空等非法路径
 ## 
 ##################################################
 get_compose_file() {
@@ -94,6 +94,36 @@ get_compose_file() {
   echo "${compose_file}"
 }
 
+##################################################
+## 获取workspace默认得用户名, 之前版本统一为papiyas
+## 这种方式对未使用papiyas脚本安装的用户来说非常不人性化
+##################################################
+get_workspace_user() {
+  local user=$(get_config env.compose_project_name)
+
+  if [ -z "${user}" ] || [ "${user}" = 'root' ]; then
+    user="papiyas"
+  fi
+
+  echo "${user}"
+}
+
+
+get_workspace_path() {
+  local workspace_path=$(eval echo $(get_config app.workspace_path))
+
+  if [ -z "${workspace_path}" ] || [ "${workspace_path}" = '.' ] || [ "${workspace_path}" = '..' ]; then
+    workspace_path="${papiyas_path}/../projects"
+  elif [ "${workspace_path::1}" == '/' ]; then
+    workspace_path="${workspace_path}"
+  else
+    workspace_path="${papiyas_path}/${workspace_path}"
+  fi
+  
+  echo "${workspace_path}"
+}
+
+
 
 ###########################################################
 ##
@@ -105,7 +135,7 @@ get_compose_file() {
 ##
 ###########################################################
 sync_config() {
-  local laradock_path=$(eval echo $(get_config app.laradock_path))
+  local laradock_path=$(get_laradock_path)
 
   ## 所有操作均在laradock_path目录下执行
   if [ ! -d "${laradock_path}" ]; then
@@ -177,7 +207,7 @@ sync_config() {
   ansi --yellow "配置文件数据同步成功..."
 
 
-  local compose_file=$(get_config app.compose_file)
+  local compose_file=$(get_compose_file)
 
   if [ ! -f "${compose_file}.bak" ]; then
     cp "${compose_file}" "${compose_file}.bak"
@@ -194,10 +224,11 @@ sync_config() {
     cp "${workspace_dockerfile}" "${workspace_dockerfile}.bak"
   fi
 
-  sed -i 's/ laradock / papiyas /g' "${workspace_dockerfile}"
-  sed -i 's/USER laradock/USER papiyas/g' "${workspace_dockerfile}"
-  sed -i 's/\/home\/laradock/\/home\/papiyas/g' "${workspace_dockerfile}" 
-  sed -i 's/laradock:laradock/papiyas:papiyas/g' "${workspace_dockerfile}"
+  local user=$(get_workspace_user)
+  sed -i "s/ laradock / ${user} /g" "${workspace_dockerfile}"
+  sed -i "s/USER laradock/USER ${user}/g" "${workspace_dockerfile}"
+  sed -i "s/\/home\/laradock/\/home\/${user}/g" "${workspace_dockerfile}" 
+  sed -i "s/laradock:laradock/${user}:${user}/g" "${workspace_dockerfile}"
   sed -i '/WORKDIR \/var\/www/d' "${workspace_dockerfile}"
 
   append_compose_config 'workspace' 'APP_CODE_PATH_CONTAINER=${APP_CODE_PATH_CONTAINER}'
@@ -210,8 +241,6 @@ sync_config() {
 
 
   local install_symfony=$(get_config env.workspace_install_symfony)
-
- 
 
   if [ ${install_symfony} = true ]; then
     local line=$(remove_laradock_config 'Symfony' "${workspace_dockerfile}")
@@ -345,8 +374,8 @@ fi
 ## 
 ##################################################
 docker_compose() {
-  local laradock_path=$(eval echo $(get_config app.laradock_path))
-  local compose_file=$(get_config app.compose_file)
+  local laradock_path=$(get_laradock_path)
+  local compose_file=$(get_compose_file)
 
   docker-compose --project-directory=${laradock_path} -f"${laradock_path}/${compose_file}" "$@"
 }
