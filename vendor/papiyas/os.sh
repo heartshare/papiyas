@@ -67,8 +67,6 @@ install_docker_ubuntu() {
     # docker没有启动前/etc/docker目录是不存在的, 无法进行拷贝.所以先启动docker
     sudo service docker start
     sudo cp "${papiyas_extra_path}/daemon.json" /etc/docker/daemon.json
-#    sudo systemctl daemon-reload
-#    sudo systemctl enable docker
 
     install_docker_compose
 

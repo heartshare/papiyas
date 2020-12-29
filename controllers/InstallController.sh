@@ -18,7 +18,7 @@ install::configure() {
   add_option '' 'pull' $OPTION_NULL '始终获取最新的镜像'
   add_option 'q' 'quiet' $OPTION_NULL '不打印任何输出'
   add_option '' 'no-cache' $OPTION_NULL '不使用缓存'
-  add_argument 'name' $INPUT_REQUIRE
+  add_argument 'name' $INPUT_ARRAY
 }
 
 ################################################################
@@ -29,24 +29,24 @@ install::configure() {
 ##
 ################################################################
 install::docker() {
-
+  ## 根据指定操作系统进行安装docker
   get_os
 
   install_docker_"${OS}"
 }
 
 ## 启动docker
-start_docker() {
-  sudo systemctl status docker &> /tmp/warning
+# start_docker() {
+#   sudo systemctl status docker &> /tmp/warning
   
-  local status=$(cat '/tmp/warning' | awk '{if($1 == "Active:")print $3}' | awk '{print $1}')
+#   local status=$(cat '/tmp/warning' | awk '{if($1 == "Active:")print $3}' | awk '{print $1}')
 
-  if [ $status == '(dead)' ]; then
-    sudo systemctl start docker
-  fi
+#   if [ $status == '(dead)' ]; then
+#     sudo systemctl start docker
+#   fi
 
-  rm /tmp/warning
-}
+#   rm /tmp/warning
+# }
 
 install_docker_compose() {
   sudo curl -L "https://get.daocloud.io/docker/compose/releases/download/1.27.4/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
@@ -67,7 +67,6 @@ permission_denied() {
 ################################################################
 ## install:laradock
 ## 
-## @option: -f, --force (optional) 强制构建, 当构建完毕后不会重新构建, 如果需要重新构建则需要增加此参数
 ## @description: 安装laradock
 ## @notice: vm虚拟机中CentOS8无法正常启动容器, aliyun可以.
 ##
@@ -89,31 +88,33 @@ INSTALL
        fi
 
        # 安装laradock时需要用到的一些变量
-       local LARADOCK_PATH=$(eval echo $(get_config app.laradock_path))
-       local COMPOSE_FILE=$(get_config app.compose_file)
-       local no_cache
-       ## 如果强制构建会删除当前已下载的laradock重新下载
-       if [ -n "$(get_option force)" ]; then
-         rm -rf ${LARADOCK_PATH}
-         no_cache='--no-cache'
-       fi
+       local laradock_path=$(get_laradock_path)
+       local compose_file=$(get_compose_file)
 
        install_laradock
     fi
 }
 
+######################################################################
+##
+## 检查git是否安装 以及laradock是否下载
+##
+######################################################################
 check_requirements() {
-  if [ -d "${LARADOCK_PATH}" ]; then
-    if [ -f "${LARADOCK_PATH}/.papiyas_installed" ]; then
-      ansi --blue "Laradock已下载成功"
-      return;
-    else
-      throw "${LARADOCK_PATH}不为空, 请删除该目录后重试"
-    fi
-  fi
-
   if ! command_exists git; then
     install_git_{OS}
+  fi
+
+  ## 之前的判断对不通过papiyas命令安装的laradock检查无法通过
+  ## 修改检查逻辑, 增加git源校验. 只要目录是一个git仓库即通过校验
+  if [ -d "${laradock_path}" ]; then
+    
+    if [ -f "${laradock_path}/.papiyas_installed" ]; then
+      ansi --blue "Laradock已下载成功"
+      return;
+    elif ! git remote -v &> /dev/null; then
+      throw "${laradock_path}不为空, 请删除该目录后重试"
+    fi
   fi
 }
 
@@ -126,170 +127,15 @@ download_laradock() {
   fi
 
   # 将laradock下载到LARADOCK_PATH目录
-  if [ ! -d "${LARADOCK_PATH}" ]; then
-    git clone "${laradock_repo}" "${LARADOCK_PATH}"
+  if [ ! -d "${laradock_path}" ]; then
+    git clone "${laradock_repo}" "${laradock_path}"
   fi
 
-  if [ -d "${LARADOCK_PATH}" ]; then
-    touch "${LARADOCK_PATH}/.papiyas_installed"
+  if [ -d "${laradock_path}" ]; then
+    touch "${laradock_path}/.papiyas_installed"
   else
     throw "下载Laradock失败, 请检查网络或更新下载源" 1
   fi
-}
-
-###########################################################
-##
-## 同步配置信息, 该操作在安装laradock以及构建容器时均会执行一次
-## 该函数主要做3件事情
-## 1. 将用户自定义的数据同步到.env文件中去
-## 2. 补充主要容器的dockerfile的不足
-## 3. 修改compose_file, 为dockerfile提供对应变量
-##
-###########################################################
-sync_config() {
-  local laradock_path=$(eval echo $(get_config app.laradock_path))
-
-  ## 所有操作均在laradock_path目录下执行
-  if [ ! -d "${laradock_path}" ]; then
-    throw "${laradock_path}不存在"
-  fi
-
-  cd "${laradock_path}"
-
-  local env_example="env-example"
-
-  # 对原始文件进行备份
-  if [ ! -f "${env_example}.bak" ]; then
-    cp "${env_example}" "${env_example}.bak"
-  fi
-
-  # 在不对原配置文件更改的情况下去同步配置
-  local config_file="${papiyas_config_path}/env.ini"
-  local tmp_file="env.tmp.ini"
-
-  cp "${config_file}" "${tmp_file}"
-
-  ##################################################
-  ## NODEJS 配置
-  ##################################################
-
-  local install_node=$(get_config env.workspace_install_node)
-
-  # 只要没有将node_js安装选项设置为true, 统统认为不安装
-  if [ ${install_node} != true ]; then
-    sed -i 's/^WORKSPACE_NVM_NODEJS_ORG_MIRROR=.*$/WORKSPACE_NVM_NODEJS_ORG_MIRROR=/' "${tmp_file}"
-    sed -i 's/^WORKSPACE_NPM_REGISTRY=.*$/WORKSPACE_NPM_REGISTRY=/' "${tmp_file}"
-    sed -i 's/^WORKSPACE_INSTALL_NODE=.*$/WORKSPACE_INSTALL_NODE=false/' "${tmp_file}"
-    sed -i 's/^WORKSPACE_INSTALL_YARN=.*$/WORKSPACE_INSTALL_YARN=false/' "${tmp_file}"
-  fi
-  ##################################################
-
-
-  ##################################################
-  ## 其他基础信息配置
-  ##################################################
-
-  # php版本从app.ini中读取
-  sed -i "\$a PHP_VERSION=$(get_config app.php_version)" "${tmp_file}"
-
-  # 本地安装路径也从app.ini中读取, 该路径必须为绝对路径或相对于laradock_path的相对路径
-  local workspace_path=$(eval echo $(get_config app.workspace_path))
-  sed -i "\$a APP_CODE_PATH_HOST=${workspace_path}" "${tmp_file}"
-
-  ##################################################
-
-  # 去除所有注释开头的以及空行
-  env=$(cat "${tmp_file}" | awk -F '=' '{if($i !~ "(^#|^ *$)"){print $1, $0}}')
-
-  function replace_config {
-    while [ "$1" ]; do
-      sed -i.bak "s/^$1=.*$/$(str_convert "$2")/" "${env_example}"
-      shift 2
-    done
-  }
-
-  # repalce
-  replace_config $env
-  # save to laradock/.env
-  cp "${env_example}" ".env"  
-  # rollback
-  # cp $LARADOCK_PATH"/.env-example.papiyas.bak" $LARADOCK_PATH"/env-example"
-  rm -f "${tmp_file}"
-
-  ansi --yellow "配置文件数据同步成功..."
-
-
-  local compose_file=$(get_config app.compose_file)
-
-  if [ ! -f "${compose_file}.bak" ]; then
-    cp "${compose_file}" "${compose_file}.bak"
-  fi
-
-  ########################################################################
-  ##
-  ## workspace/Dockerfile
-  ##
-  ########################################################################
-  local workspace_dockerfile='workspace/Dockerfile'
-
-  if [ ! -f "${workspace_dockerfile}.bak" ]; then
-    cp "${workspace_dockerfile}" "${workspace_dockerfile}.bak"
-  fi
-
-  sed -i 's/ laradock / papiyas /g' "${workspace_dockerfile}"
-  sed -i 's/USER laradock/USER papiyas/g' "${workspace_dockerfile}"
-  sed -i 's/\/home\/laradock/\/home\/papiyas/g' "${workspace_dockerfile}" 
-  sed -i 's/laradock:laradock/papiyas:papiyas/g' "${workspace_dockerfile}"
-  sed -i '/WORKDIR \/var\/www/d' "${workspace_dockerfile}"
-
-  append_compose_config 'workspace' 'APP_CODE_PATH_CONTAINER=${APP_CODE_PATH_CONTAINER}'
-  append_dockerfile_config 'WORKDIR' "${workspace_dockerfile}"
-
-  ## Nodejs 太难安装了, 所以替换为我自己的服务器的资源
-  if [ ${install_node} = true ]; then
-    sed -i "s/$(str_convert https://raw.githubusercontent.com/creationix/nvm/)/$(str_convert http://laradock.papiyas.cn/creationix/nvm/)/" "${workspace_dockerfile}"
-  fi
-
-
-  local install_symfony=$(get_config env.workspace_install_symfony)
-
- 
-
-  if [ ${install_symfony} = true ]; then
-    local line=$(remove_laradock_config 'Symfony' "${workspace_dockerfile}")
-    if [ -n "${line}" ]; then
-      append_dockerfile_config 'Symfony' "${workspace_dockerfile}" "${line}"
-    fi
-  fi
-
-
-  ########################################################################
-  ##
-  ## php-fpm/Dockerfile
-  ##
-  ########################################################################
-  local php_fpm_dockerfile='php-fpm/Dockerfile'
-
-  if [ ! -f "${php_fpm_dockerfile}.bak" ]; then
-    cp "${php_fpm_dockerfile}" "${php_fpm_dockerfile}.bak"
-  fi
-
-  # 添加变量
-  append_compose_config 'php-fpm' 'APP_CODE_PATH_CONTAINER=${APP_CODE_PATH_CONTAINER}'
-  append_compose_config 'php-fpm' 'TZ=${WORKSPACE_TIMEZONE}'
-  
-  ## 动态更改工作目录
-  local line=$(get_line 'WORKDIR \/var\/www' "${php_fpm_dockerfile}")
-  ## 防止2次错误处理
-  if [ -n "${line}" ]; then
-    append_dockerfile_config 'WORKDIR' "${php_fpm_dockerfile}" "${line}"
-    sed -i "${line}d" "${php_fpm_dockerfile}"
-  fi
-
-  ## 设置时区 与 workspace 保持一致
-  line=$(expr $(get_line "# Clean up" "${php_fpm_dockerfile}") - 1)
-
-  append_dockerfile_config 'Set Timezone' "${php_fpm_dockerfile}" "${line}"
 }
 
 install_laradock() {
@@ -301,14 +147,13 @@ install_laradock() {
     download_laradock
 
     # 后续操作都在LARADOCK_PATH目录下进行
-    cd "${LARADOCK_PATH}"
+    cd "${laradock_path}"
 
     # 要构建的容器列表
     local container=$(get_config app.server_list)
 
+    # 由于新增了php$容器代表所有的php, 在安装的时候需要将之过滤. 并替换为php-fpm
     container=($(echo "${container}" | sed -n 's/php\$/php-fpm/gp'))
-
-    # 由于新增了php$容器代表所有的php, 在安装的时候需要将之过滤. 并替换为php-fpm(如果不存在的话)
 
     sync_config
 
@@ -316,11 +161,11 @@ install_laradock() {
     if has_build workspace; then
       ansi --blue "workspace已经构建成功, 不再重复构建"
     else
-      if docker_compose build  ${no_cache} workspace; then
+      if docker_compose build workspace; then
         build_success workspace
-        local APP_CODE_PATH_CONTAINER=$(get_config env.APP_CODE_PATH_CONTAINER)
+        local container_path=$(get_config env.app_code_path_container)
         docker_compose up -d workspace
-        docker_compose exec workspace bash -c "chown -R papiyas:papiyas ${APP_CODE_PATH_CONTAINER}" 
+        docker_compose exec workspace bash -c "chown -R papiyas:papiyas ${container_path}" 
         ansi --yellow "Workspace构建成功..."
       else
         throw "workspace构建失败" 1
@@ -331,7 +176,7 @@ install_laradock() {
     if has_build docker-in-docker; then
       ansi --blue "docker-in-docker已经构建成功, 不再重复构建"
     else
-      if docker_compose build ${no_cache} docker-in-docker; then
+      if docker_compose build docker-in-docker; then
         build_success docker-in-docker
       else
         throw "docker-in-docker构建失败" 1
@@ -345,7 +190,7 @@ install_laradock() {
       local c
       for c in "${container[@]}"; do
         if ! has_build $c; then
-          if ! docker_compose build ${no_cache} "${c}"; then
+          if ! docker_compose build "${c}"; then
             throw "服务容器${c}构建失败" 1
           fi
 
@@ -405,12 +250,28 @@ install_laradock() {
 }
 
 
+
+
+
+##################################################################
+## install:build
+## 
+## @options --quiet (optional) 构建过程中不输出任何数据
+## @options --no-cache (optional) 不使用缓存
+## @options --pull (optional) 使用最新的镜像
+## @params  name 要构建的容器名称(可以是多个)
+##
+##################################################################
 install::build() {
 
   sync_config
 
   local options=()
   local name=$(get_argument name)
+
+  if [ -z "${name}" ]; then
+    throw "请输入要构建的服务名称"
+  fi
 
   if [ -n "$(get_option quiet)" ]; then
     options[${#options[@]}]='--quiet'
@@ -428,7 +289,6 @@ install::build() {
      throw "构建${name}失败" 1
   fi
 }
-
 
 
 install::go() {
