@@ -73,32 +73,16 @@ install::laradock() {
       throw "请先运行papiyas install:docker安装docker后再安装laradock"
     fi
 
-if [ -z "$(get_option force)" ]; then
-      newgrp docker << INSTALL
-        bash ${papiyas} install:laradock -f
-INSTALL
-    else
-       if ! docker ps &> /dev/null; then
-         throw "Docker未启动, 无法安装laradock"
-       fi
-
-       local laradock_path=$(get_laradock_path)
-       install_laradock
+    if permission_denied; then
+      newgrp docker
     fi
 
+    if ! docker ps &> /dev/null; then
+      throw "Docker未启动, 无法安装laradock"
+    fi
 
-#     if permission_denied; then
-#       newgrp docker << INSTALL
-#         bash ${papiyas} install:laradock
-# INSTALL
-#     else
-#        if ! docker ps &> /dev/null; then
-#          throw "Docker未启动, 无法安装laradock"
-#        fi
-
-#        local laradock_path=$(get_laradock_path)
-#        install_laradock
-#     fi
+    local laradock_path=$(get_laradock_path)
+    install_laradock
 }
 
 ######################################################################
@@ -169,7 +153,10 @@ install_laradock() {
     else
       if docker_compose build workspace; then
         build_success workspace
+        local container_path=$(get_config env.app_code_path_container)
         docker_compose up -d workspace
+        local user=$(get_workspace_user)
+        docker_compose exec workspace bash -c "chown -R ${user}:${user} ${container_path}"
         ansi --yellow "Workspace构建成功..."
       else
         throw "workspace构建失败" 1
@@ -226,6 +213,15 @@ install::php() {
   # 不重复进行同步配置文件
   if [ "${1}" != false ]; then
     sync_config
+
+    if permission_denied; then
+      newgrp docker
+    fi
+
+    if ! docker ps &> /dev/null; then
+      throw "Docker未启动, 无法安装laradock"
+    fi
+
   fi
 
 
@@ -242,7 +238,6 @@ install::php() {
   if [ ! -f "${workspace_path}/.composer/bin/composer" ]; then
     docker_compose exec --user="$(get_workspace_user)" workspace bash -c "mkdir -p .composer/bin/ && cp /usr/local/bin/composer .composer/bin/composer"
   fi
-
 
   # 将重复的php版本进行过滤
   php_multi_versions=($(echo $php_multi_versions | sed "s/${php_version}//g"))
