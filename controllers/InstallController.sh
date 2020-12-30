@@ -142,11 +142,12 @@ install_laradock() {
 
       local c
       for c in "${container[@]}"; do
-        if ! has_build $c; then
+        if ! has_build "${c}"; then
           if ! docker_compose build "${c}"; then
             throw "服务容器${c}构建失败" 1
           fi
 
+          docker_compose up -d "${c}"
           build_success "${c}"
         fi  
       done
@@ -209,7 +210,7 @@ install::php() {
         ansi --blue "容器${build}已经构建完成..."
       else
         local yml="${build}.yml"
-        sed -n '/### PHP-FPM/, /^$/p' $compose_file > tmp.yml
+        sed -n '/### PHP-FPM/, /^$/p' "${compose_file}" > tmp.yml
         cp -r php-fpm "${build}"
         rm -f "${build}/php*ini"
         cp "php-fpm/${build}.ini" "${build}"
@@ -218,7 +219,7 @@ install::php() {
         sed -i "s/php-fpm/php${version}/" "${yml}" 
         sed -i "s/\${PHP_VERSION}/${version}/" "${yml}"
         if ! has_compose_config "${build}" '' 'container'; then
-          echo -e "$(cat ${yml})" >> $compose_file
+          echo -e "$(cat ${yml})" >> "${compose_file}"
         fi
 
         ansi --yellow "正在构建${build}..."
@@ -226,12 +227,14 @@ install::php() {
           throw "${build}构建失败"
         fi
 
+        docker_compose up -d "${build}"
+
         if [ -n "${composer_repo}" ]; then
           docker_compose exec -T --user=www-data "${build}"  php  /var/www/.composer/bin/composer config -g repo.packagist composer "${composer_repo}"
         fi
 
         ansi --yellow "${build}构建完毕..."
-        build_success ${build}
+        build_success "${build}"
       fi
     done
   fi
