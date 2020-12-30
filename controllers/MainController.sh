@@ -40,13 +40,14 @@ main::dc() {
 ## @notice: 使用papiyas命令安装docker的。可能需要sudo权限
 ## 
 ################################################################
-main::check-permission() {
-  if ! groups "${USER}" | grep docker &> /dev/null; then
-    sudo gpasswd -a "${USER}" docker
-  fi
+# main::check-permission() {
+#   if ! groups "${USER}" | grep docker &> /dev/null; then
+#     sudo gpasswd -a "${USER}" docker
+#   fi
 
-  check_permission
-}
+#   check_permission
+# }
+
 ################################################################
 ## php
 ## 
@@ -153,7 +154,7 @@ main::list() {
 
   echo -e "\033[33mAvailable commands:\033[0m"
   echo -e "\033[31m    list\033[0m                     显示Papiyas命令列表"
-  echo -e "\033[31m    check-permission\033[0m         当权限不足时调用此命令赋予权限，可能需要root权限"
+  # echo -e "\033[31m    check-permission\033[0m         当权限不足时调用此命令赋予权限，可能需要root权限"
   echo -e "\033[31m    docker-compose\033[0m           执行docker-compose原生命令, 简写dc"
   echo -e "\033[31m    php\033[0m                      执行php命令"
   echo -e "\033[31m    npm\033[0m                      执行npm命令"

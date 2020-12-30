@@ -30,24 +30,6 @@ install::docker() {
   install_docker_"${OS}"
 }
 
-## 启动docker
-# start_docker() {
-#   sudo systemctl status docker &> /tmp/warning
-  
-#   local status=$(cat '/tmp/warning' | awk '{if($1 == "Active:")print $3}' | awk '{print $1}')
-
-#   if [ $status == '(dead)' ]; then
-#     sudo systemctl start docker
-#   fi
-
-#   rm /tmp/warning
-# }
-
-install_docker_compose() {
-  sudo curl -L "https://get.daocloud.io/docker/compose/releases/download/1.27.4/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-  sudo chmod +x /usr/local/bin/docker-compose
-}
-
 ################################################################
 ## install:laradock
 ## 
@@ -119,9 +101,6 @@ install_laradock() {
     # 下载Laradock
     download_laradock
 
-    # 后续操作都在LARADOCK_PATH目录下进行
-    cd "${laradock_path}"
-
     # 要构建的容器列表
     local container=$(get_config app.server_list)
 
@@ -139,18 +118,12 @@ install_laradock() {
         local container_path=$(get_config env.app_code_path_container)
         docker_compose up -d workspace
         local user=$(get_workspace_user)
-        docker_compose exec workspace bash -c "chown -R ${user}:${user} ${container_path}"
+        docker_compose exec -T workspace bash -c "chown -R ${user}:${user} ${container_path}"
         ansi --yellow "Workspace构建成功..."
       else
         throw "workspace构建失败" 1
       fi
     fi
-        local container_path=$(get_config env.app_code_path_container)
-        docker_compose up -d workspace
-        local user=$(get_workspace_user)
-        docker_compose exec workspace bash -c "chown -R ${user}:${user} ${container_path}"
-
-    exit
 
     # 构建docker-in-docker
     if has_build docker-in-docker; then
@@ -218,7 +191,7 @@ install::php() {
   local php_multi_versions=$(get_config app.php_multi_versions)
 
   if [ ! -f "${workspace_path}/.composer/bin/composer" ]; then
-    docker_compose exec --user="$(get_workspace_user)" workspace bash -c "mkdir -p .composer/bin/ && cp /usr/local/bin/composer .composer/bin/composer"
+    docker_compose exec -T --user="$(get_workspace_user)" workspace bash -c "mkdir -p .composer/bin/ && cp /usr/local/bin/composer .composer/bin/composer"
   fi
 
   # 将重复的php版本进行过滤
@@ -254,7 +227,7 @@ install::php() {
         fi
 
         if [ -n "${composer_repo}" ]; then
-          docker_compose exec --user=www-data "${build}"  php  /var/www/.composer/bin/composer config -g repo.packagist composer "${composer_repo}"
+          docker_compose exec -T --user=www-data "${build}"  php  /var/www/.composer/bin/composer config -g repo.packagist composer "${composer_repo}"
         fi
 
         ansi --yellow "${build}构建完毕..."
@@ -280,15 +253,14 @@ install::php() {
 ##
 ##################################################################
 install::build() {
-
-  sync_config
-
   local options=()
   local name=$(get_argument name)
 
   if [ -z "${name}" ]; then
     throw "请输入要构建的服务名称"
   fi
+
+  sync_config
 
   if [ -n "$(get_option quiet)" ]; then
     options[${#options[@]}]='--quiet'

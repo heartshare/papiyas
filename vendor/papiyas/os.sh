@@ -168,3 +168,21 @@ install_git_centos() {
   fi
 }
 
+
+## 启动docker
+# start_docker() {
+#   sudo systemctl status docker &> /tmp/warning
+  
+#   local status=$(cat '/tmp/warning' | awk '{if($1 == "Active:")print $3}' | awk '{print $1}')
+
+#   if [ $status == '(dead)' ]; then
+#     sudo systemctl start docker
+#   fi
+
+#   rm /tmp/warning
+# }
+
+install_docker_compose() {
+  sudo curl -L "https://get.daocloud.io/docker/compose/releases/download/1.27.4/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+  sudo chmod +x /usr/local/bin/docker-compose
+}

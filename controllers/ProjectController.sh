@@ -59,11 +59,11 @@ project::create() {
 
   local php_command="docker_compose exec ${php_container} php"
 
-  local laradock_path=$(eval echo $(get_config app.laradock_path))
-  cd "${laradock_path}"
-  local workspace_path=$(get_config app.workspace_path)
+  local laradock_path=$(get_laradock_path)
+  local workspace_path=$(get_workspace_path)
   local user=$(get_workspace_user)
 
+  # 防止文件被意外删除
   if [ ! -f "${workspace_path}/.composer/bin/composer" ]; then
     docker_compose exec --user="${user}" workspace bash -c "mkdir -p .composer/bin/ && cp /usr/local/bin/composer .composer/bin/composer"
   fi
@@ -125,6 +125,7 @@ project_php_version=${php_container}
 "
 
   local install_success=false
+  # 如果php版本为默认版本, 则调用workspace容器的composer指令
   if [ "${php_container}" = "php-fpm" ]; then
     if docker_compose exec --user="${user}" workspace bash -c "composer ${install_command}"; then
       install_success=true
@@ -148,7 +149,7 @@ project_php_version=${php_container}
     if [ $server_name ]; then
       sed -e "s/__SERVER_NAME__/$server_name/; s/__PROJECT_DIRECTORY__/`str_convert ${app_code_path}/$project_name`/; s/__PHP_CONTAINER__/`str_convert ${php_container}:9000`/" ${nginx_conf} > ${laradock_path}"/nginx/sites/${project_name}.conf"
     
-      if [ -n "${restart}" ]
+      if [ -n "${restart}" ]; then
         docker_compose restart nginx
       fi
     
