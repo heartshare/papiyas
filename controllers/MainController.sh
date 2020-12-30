@@ -73,6 +73,11 @@ main::php() {
 
   local container
 
+  ## 防止空php指令卡住, 默认显示版本号
+  if [ ${#params[@]} -eq 0 ]; then
+    params[0]='-v'
+  fi
+
 
   if [ -f ".papiyas" ]; then
     source .papiyas
@@ -99,10 +104,6 @@ main::php() {
     fi
   fi
 
-  ## 防止空php指令卡住, 默认显示版本号
-  if [ ${#params[@]} -eq 0 ]; then
-    params[0]='-v'
-  fi
   
   docker_compose exec --user=$user $container php ${params[@]};
 }
