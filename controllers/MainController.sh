@@ -250,6 +250,11 @@ main::list() {
   echo -e "\033[31m    project:conf\033[0m             查看当前或者指定项目的配置文件"
 
   echo
+
+  echo -e "\033[33m  bash:\033[0m"
+  echo -e "\033[31m    bash:workspace\033[0m           进入到workspace容器中操作"
+
+  echo
   ansi --blue "目前papiyas正处于开发阶段, 在使用方面可能有诸多不足需要优化或者有影响使用的bug, 敬请谅解"
 }
 
