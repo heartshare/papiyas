@@ -9,7 +9,7 @@ project::configure() {
     add_option ''  'full' $OPTION_NULL 'symfony专用, 下载完整版'
     add_option ''  'type' $OPTION_REQUIRE '框架名称' 'laravel'
     add_option 'r' 'restart' $OPTION_NULL '创建项目时是否重新启动nginx'
-    add_option 'h' 'host' $OPTION_REQUIRE '项目域名'
+    add_option '' 'host' $OPTION_REQUIRE '项目域名'
     add_argument 'project_name' $INPUT_REQUIRE '项目名称'
 }
 
@@ -20,7 +20,7 @@ project::configure() {
 ## @options --type (optional) 要安装的框架名称, 默认为laravel. 目前支持laravel, symfony, yii
 ## @options -v, --version (optional  bool) 框架版本号, 默认为最新版
 ## @options --php-version (optional) 该项目要使用的php版本号, 不填则采用默认的版本号
-## @options -h, --host (optional) 项目域名
+## @options --host (optional) 项目域名
 ## @options -r, --restart (optional bool) 创建项目后重启Nginx, 只在填写了项目域名的情况下有效
 ## @options --full (optional  bool) Symfony专用, 是否安装完整版
 ## @params  project_name 项目名称
