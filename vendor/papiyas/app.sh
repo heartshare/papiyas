@@ -284,7 +284,7 @@ Papiyas::help() {
   if [ "${controller_name}" == 'main' ]; then
     search=$(get_action)
   else
-    search=${controller_name}::$(get_action)
+    search=${controller_name}:$(get_action)
   fi
 
   local start_line=$(get_line "^## ${search}" "${controller_filename}")

@@ -79,7 +79,7 @@ main::php() {
 
     container=$project_php_version
 
-    if [ -z "${container}" ]; then
+    if [ -z "${container}" ] || [ -z "${project_name}" ]; then
       throw "项目管理文件缺失, 无法获取php版本号"
     fi
 
@@ -109,6 +109,70 @@ main::php() {
 
 
 ################################################################
+## composer
+## 
+## @option --uname (optional) 默认为www-data
+## @option --php-version 可指定要执行的php版本号, 确保已经构建了多版本PHP且容器已经运行
+## @description: 
+##   + 可执行原生php命令, 如无参数则会默认执行php -v
+##   + 如果觉得指定版本执行太麻烦, 可以使用简写来代替
+##     papiyas composer --php-version=7.4 等同于 papiyas composer7.4
+## @append:
+##   + 以下特性仅在被papiyas管理的项目中起作用
+##   + 调用composer指令时会自动调用该项目创建时所用的php版本
+## 
+################################################################
+main::composer() {
+  local php_version=$(get_config app.php_version)
+  local user_php_version=$(get_option php-version)
+
+  local user=$(get_option uname)
+  user=${user:-www-data}
+
+  local workspace_path=$(get_workspace_path)
+
+  # 防止文件被意外删除
+  if [ ! -f "${workspace_path}/.composer/bin/composer" ]; then
+    docker_compose exec --user="$(get_workspace_user)" workspace bash -c "mkdir -p .composer/bin/ && cp /usr/local/bin/composer .composer/bin/composer"
+  fi
+
+  local container
+
+  if [ -f ".papiyas" ]; then
+    source .papiyas
+
+    container=$project_php_version
+
+    if [ -z "${container}" ]  || [ -z "${project_name}" ]; then
+      throw "项目管理文件缺失, 无法获取php版本号"
+    fi
+
+    if [ ${#params[@]} -gt 0 ]; then
+      local param
+      for param in "${params[@]}"; do
+        if [ "${param::1}" != "-" ]; then
+          params[${#params[@]}]='-d'
+          params[${#params[@]}]="${project_name}"
+          break
+        fi
+      done
+    fi
+
+  else
+    if [ -z "${user_php_version}" ]; then
+      container="php-fpm"
+    elif [ "${php_version}" == "${user_php_version}" ]; then
+      container='php-fpm'
+    else
+      container='php'${user_php_version}
+    fi
+  fi
+
+  docker_compose exec --user=$user $container php .composer/bin/composer ${params[@]}
+}
+
+
+################################################################
 ## npm
 ## 
 ## @option --uname (optional) 默认为papiyas
@@ -117,7 +181,7 @@ main::php() {
 ################################################################
 main::npm() {
   local user=$(get_option uname)
-  user=${user:papiyas}
+  user=${user:-papiyas}
   docker_compose exec --user=$user workspace npm "${params[@]}"
 }
 
@@ -157,6 +221,7 @@ main::list() {
   # echo -e "\033[31m    check-permission\033[0m         当权限不足时调用此命令赋予权限，可能需要root权限"
   echo -e "\033[31m    docker-compose\033[0m           执行docker-compose原生命令, 简写dc"
   echo -e "\033[31m    php\033[0m                      执行php命令"
+  echo -e "\033[31m    composer\033[0m                 执行composer命令"
   echo -e "\033[31m    npm\033[0m                      执行npm命令"
   echo -e "\033[31m    mysql\033[0m                    执行mysql命令"
 
@@ -175,11 +240,13 @@ main::list() {
   echo -e "\033[33m  install:\033[0m"
   echo -e "\033[31m    install:docker\033[0m           安装docker和laradock"
   echo -e "\033[31m    install:laradock\033[0m         安装laradock"
+  echo -e "\033[31m    install:build\033[0m            重新构建指定容器"
 
   echo
 
   echo -e "\033[33m  project:\033[0m"
   echo -e "\033[31m    project:create\033[0m           创建一个新项目, 可支持laravel, symfony, yii"
+  echo -e "\033[31m    project:conf\033[0m             查看当前或者指定项目的配置文件"
 
   echo
   ansi --blue "目前papiyas正处于开发阶段, 在使用方面可能有诸多不足需要优化或者有影响使用的bug, 敬请谅解"
@@ -204,6 +271,12 @@ main::rollback() {
   ## 快捷php版本
   if [[ "$action" =~ php ]]; then
     bash ${papiyas} php --uname=$(get_option uname) --php-version=${action#php}  "${params[@]}"
+    return
+  fi
+
+   ## 快捷php版本 composer
+  if [[ "$action" =~ composer ]]; then
+    bash ${papiyas} composer --uname=$(get_option uname) --php-version=${action#composer}  "${params[@]}"
     return
   fi
 

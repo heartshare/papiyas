@@ -39,15 +39,23 @@ install::docker() {
 ##
 ################################################################
 install::laradock() {
-    # 判断是否有权限
-    if ! command_exists docker && ! command_exists docker-compose; then
-      throw "请先运行papiyas install:docker安装docker后再安装laradock"
-    fi
+  # 判断是否有权限
+  if ! command_exists docker && ! command_exists docker-compose; then
+    throw "请先运行papiyas install:docker安装docker后再安装laradock"
+  fi
 
-    check_permission
+  if permission_denied; then
+    newgrp docker << INSTALL
+      bash ${papiyas} install:laradock
+INSTALL
+  else
+    if ! docker ps &> /dev/null; then
+      throw "Docker未启动, 无法安装laradock"
+    fi
 
     local laradock_path=$(get_laradock_path)
     install_laradock
+  fi
 }
 
 ######################################################################

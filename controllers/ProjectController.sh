@@ -7,9 +7,10 @@ project::configure() {
     ## 指定当前项目要使用的php版本
     add_option ''  'php-version' $OPTION_REQUIRE
     add_option ''  'full' $OPTION_NULL 'symfony专用, 下载完整版'
-    add_option ''  'type' $OPTION_REQUIRE '框架名称' 'laravel'
+    add_option 'F'  'framework' $OPTION_REQUIRE '框架名称' 'laravel'
     add_option 'r' 'restart' $OPTION_NULL '创建项目时是否重新启动nginx'
-    add_option '' 'host' $OPTION_REQUIRE '项目域名'
+    add_option 'H' 'host' $OPTION_REQUIRE '项目域名'
+    add_option 'p' 'print' $OPTION_NULL
     add_argument 'project_name' $INPUT_REQUIRE '项目名称'
 }
 
@@ -17,10 +18,10 @@ project::configure() {
 ################################################################
 ## project:create
 ## 
-## @options --type (optional) 要安装的框架名称, 默认为laravel. 目前支持laravel, symfony, yii
+## @options -F, --framework (optional) 要安装的框架名称, 默认为laravel. 目前支持laravel, symfony, yii
 ## @options -v, --version (optional  bool) 框架版本号, 默认为最新版
 ## @options --php-version (optional) 该项目要使用的php版本号, 不填则采用默认的版本号
-## @options --host (optional) 项目域名
+## @options -H,--host (optional) 项目域名
 ## @options -r, --restart (optional bool) 创建项目后重启Nginx, 只在填写了项目域名的情况下有效
 ## @options --full (optional  bool) Symfony专用, 是否安装完整版
 ## @params  project_name 项目名称
@@ -34,10 +35,9 @@ project::configure() {
 ## @notice:
 ## + 在项目目录中执行的php均为创建项目时指定的--php-version
 ## 
-## 底层实际调用 docker-compose stop server_name
 ################################################################
 project::create() {
-  local framework=$(get_option type laravel)
+  local framework=$(get_option framework laravel)
   local project_name=$(get_argument project_name)
 
   if [ -z "${project_name}" ]; then
@@ -74,29 +74,29 @@ project::create() {
     laravel)
       install_command="create-project --prefer-dist laravel/laravel ${project_name} ${version}"
     ;;
-    thinkphp|tp)
-      major_version=$(echo $version | awk -F'.' '{print $1}')
-      case "${major_version}" in
-        3)
-          # version 3.2
-          # composer create-project topthink/thinkphp project-name
-          install_command="create-project topthink/thinkphp ${project_name} ${version}"
-        ;;
-        5)
-          # version 5
-          # composer create-project topthink/think=5.1.* project-name
-          install_command="create-project topthink/think=${version} ${project_name}"
-        ;;
-        6)
-          # version 6
-          # composer create-project topthink/think project-name
-          install_command="create-project topthink/think ${project_name} ${version}"
-        ;;
-        *)
-          install_command="create-project topthink/think ${project_name} ${version}"
-        ;;
-    esac
-    ;;
+    # thinkphp|tp)
+    #   major_version=$(echo $version | awk -F'.' '{print $1}')
+    #   case "${major_version}" in
+    #     3)
+    #       # version 3.2
+    #       # composer create-project topthink/thinkphp project-name
+    #       install_command="create-project topthink/thinkphp ${project_name} ${version}"
+    #     ;;
+    #     5)
+    #       # version 5
+    #       # composer create-project topthink/think=5.1.* project-name
+    #       install_command="create-project topthink/think=${version} ${project_name}"
+    #     ;;
+    #     6)
+    #       # version 6
+    #       # composer create-project topthink/think project-name
+    #       install_command="create-project topthink/think ${project_name} ${version}"
+    #     ;;
+    #     *)
+    #       install_command="create-project topthink/think ${project_name} ${version}"
+    #     ;;
+    # esac
+    # ;;
     yii)
       install_command="create-project --prefer-dist yiisoft/yii2-app-basic ${project_name} ${version}"
     ;;
@@ -165,23 +165,66 @@ project_php_version=${php_container}
 
 
 get_php_container() {
-    local php_version=$(get_option php-version)
+  local php_version=$(get_option php-version)
 
-    local container="php-fpm"  # default
+  local container="php-fpm"  # default
 
-    local php_multi=$(get_config app.php_multi)
+  local php_multi=$(get_config app.php_multi)
 
-    # 开启多版本并且对应php版本容器存在
-    if [ ${php_multi} = true ]; then
-      if docker_compose top "php${php_version}" &> /dev/null; then
-        container="php${php_version}"
-      fi
+  # 开启多版本并且对应php版本容器存在
+  if [ ${php_multi} = true ]; then
+    if docker_compose top "php${php_version}" &> /dev/null; then
+      container="php${php_version}"
     fi
+  fi
 
-    echo $container
+  echo $container
 }
 
 
+################################################################
+## project:conf
+## 
+## @option -p, --print 不打开conf文件, 直接输出配置文件所在路径  
+## @params project_name 项目名称, 如果在papiyas管理得项目下运行该命令则无需传入.否则必传
+## @description: 
+##   通过vi或vim打开nginx得conf文件
+################################################################
 project::conf() {
+  local laradock_path=$(get_laradock_path)
+  local project_name=$(get_argument project_name)
+
+  if [ -z "${project_name}" ]; then
+    if [ -f ".papiyas" ]; then
+      source .papiyas
+    else
+      throw "情输入要查看配置文件的项目名称"
+    fi
+  else
+    local workspace_path=$(get_workspace_path)
+
+    if [ ! -f "${workspace_path}/${project_name}/.papiyas" ]; then
+      throw "该项目不存在或者不在papiyas管理范围之内"
+    fi
+
+    source ${workspace_path}/${project_name}/.papiyas
+  fi
+
+  nginx_conf_path="${laradock_path}/nginx/sites"
+  nginx_conf_file="${nginx_conf_path}/${project_config_filename}"
+
+  local is_print=$(get_option print)
+
+  if [ ! -z "${is_print}" ]; then
     echo
+    ansi --blue --bold "${nginx_conf_file}"
+    echo
+    return
+  fi
+
+  if command_exists vim; then
+    vim "${nginx_conf_file}"
+  else
+    vi "${nginx_conf_file}"
+  fi
 }
